@@ -1,0 +1,22 @@
+app = "router-1"
+primary_region = "ams"
+kill_signal = "SIGTERM"
+kill_timeout = "30s"
+
+[build]
+  dockerfile = 'bin/autobahn-router/Dockerfile'
+
+[experimental]
+  cmd = ["autobahn-router", "/usr/local/bin/template-config.toml"]
+
+[[vm]]
+  size = "shared-cpu-4x"
+  memory = "8gb"
+
+[[restart]]
+  policy = "always"
+  retries = 10
+
+[metrics]
+  port = 9091
+  path = "/metrics"

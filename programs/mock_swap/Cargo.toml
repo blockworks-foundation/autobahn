@@ -1,0 +1,18 @@
+[package]
+name = "mock-swap"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+test-bpf = ["no-entrypoint"]
+
+[dependencies]
+solana-program = "1.17"
+spl-token = {version = "4.0.0", features = ["no-entrypoint"]}
+
+[lib]
+name = "mock_swap"
+crate-type = ["cdylib", "lib"]
+doctest = false
+

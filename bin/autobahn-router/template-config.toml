@@ -1,0 +1,117 @@
+[infinity]
+enabled = true
+
+[orca]
+enabled = true
+mints = []
+take_all_mints = true
+add_mango_tokens = false
+
+[cropper]
+enabled = true
+mints = []
+take_all_mints = true
+add_mango_tokens = false
+
+[openbook_v2]
+enabled = true
+mints = []
+take_all_mints = true
+add_mango_tokens = false
+
+[raydium]
+enabled = true
+mints = []
+take_all_mints = false
+add_mango_tokens = true
+
+[raydium_cp]
+enabled = true
+mints = []
+take_all_mints = true
+add_mango_tokens = false
+
+[saber]
+enabled = true
+mints = []
+take_all_mints = true
+add_mango_tokens = false
+
+
+[routing]
+path_cache_validity_ms = 60000
+path_warming_mode = "ConfiguredMints"
+#path_warming_mode = "HotMints"
+path_warming_amounts = [100, 1000, 10_000]
+path_warming_for_mints = [
+    "So11111111111111111111111111111111111111112",  # SOL
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", # USDC
+#    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", # USDT
+#    "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4"  # JLP
+]
+path_warming_interval_secs = 5
+path_warming_max_accounts = [20, 25, 30, 35, 40, 64]
+lookup_tables = ["87TgskchTNEv1uXkGQk1U4zt65tjqbfGAZWNMGAcRRPx",
+    "AgCBUZ6UMWqPLftTxeAqpQxtrfiCyL2HgRfmmM6QTfCj",
+    "A1v3qxN7HbUvtyPnnaoCrKonXjkFLaDHXk3S6R2QfEaw",
+    "4C3USSPE5P4gejsvLXQNCr85v1N9NFPzLUmG88tdpuzr",
+    "FgsBrNm3uTN5cDmsYikcC3R6bAekYBJ7n3CQhxzF9AjH",
+]
+cooldown_duration_multihop_secs = 30
+cooldown_duration_singlehop_secs = 60
+max_path_length = 3
+retain_path_count = 5
+max_edge_per_pair = 5
+max_edge_per_cold_pair = 2
+
+[server]
+address = "[::]:8888"
+
+[metrics]
+output_http = true
+prometheus_address = "[::]:9091"
+output_stdout = false
+
+[[sources]]
+dedup_queue_size = 50000
+rpc_http_url = "$RPC_HTTP_URL"
+rpc_support_compression = true
+re_snapshot_interval_secs = 1200
+
+[[sources.grpc_sources]]
+name = "router-other"
+connection_string = "$RPC_HTTP_URL_WITHOUT_TOKEN"
+token = "$RPC_TOKEN"
+retry_connection_sleep_secs = 30
+
+[[sources]]
+region = "ams"
+dedup_queue_size = 50000
+rpc_http_url = "$AMS_RPC_HTTP_URL"
+rpc_support_compression = true
+re_snapshot_interval_secs = 1200
+
+[[sources.grpc_sources]]
+name = "router-ams"
+connection_string = "$AMS_RPC_HTTP_URL_WITHOUT_TOKEN"
+token = "$AMS_RPC_TOKEN"
+retry_connection_sleep_secs = 30
+
+[price_feed]
+birdeye_token = "$BIRDEYE_TOKEN"
+refresh_interval_secs = 1200     # every 20 min
+
+[safety_checks]
+check_quote_out_amount_deviation = true
+min_quote_out_to_in_amount_ratio = 0.65
+
+[hot_mints]
+always_hot_mints = [
+    "So11111111111111111111111111111111111111112",  # SOL
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", # USDC
+]
+keep_latest_count = 50
+
+[debug_config]
+reprice_using_live_rpc = true
+reprice_probability = 0.05

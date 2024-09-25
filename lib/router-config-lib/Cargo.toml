@@ -1,0 +1,18 @@
+[package]
+name = "router-config-lib"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+serde = "1.0"
+serde_derive = "1.0"
+anyhow = { workspace = true }
+base64 = "0.12.3"
+toml = "0.5"
+mango-feeds-connector = { workspace = true }
+yellowstone-grpc-proto = { workspace = true }
+
+

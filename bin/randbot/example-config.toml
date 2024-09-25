@@ -1,0 +1,19 @@
+router = "http://127.0.0.1:8888"
+rpc_http_url = "$RPC_URL"
+outgoing_rpc_http_url = "$RPC_URL"
+owner = "$KEYPAIR_PATH"
+execution_interval_sec = 60
+
+mints = [
+    "So11111111111111111111111111111111111111112",  # SOL
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", # USDC
+    "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn", # JitoSOL
+    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", # USDT
+    "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",  # JUP
+    "5oVNBeEEQvYi1cX3ir8Dx5n1P7pdxydbGF2X4TxVusJm",  # INF
+]
+use_mango_tokens = false
+
+# Random amount will be selected from this list (in USDC native)
+amounts = [1000, 500000, 2000000]
+

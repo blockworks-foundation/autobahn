@@ -1,0 +1,24 @@
+# fly.toml app configuration file generated for router-comparer on 2024-07-26T09:28:17+02:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'router-comparer'
+primary_region = 'ams'
+kill_signal = 'SIGTERM'
+kill_timeout = '30s'
+
+[experimental]
+  cmd = ['comparer', '/usr/local/bin/template-config.toml']
+
+[build]
+  dockerfile = 'bin/comparer/Dockerfile'
+
+[[restart]]
+  policy = 'always'
+  retries = 10
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1

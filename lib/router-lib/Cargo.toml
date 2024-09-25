@@ -1,0 +1,34 @@
+[package]
+name = "router-lib"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+serde_with = { version = "2.3.3" , features = ["base64"]}
+anyhow = { workspace = true }
+solana-sdk = { workspace = true }
+base64 = "0.12.3"
+dashmap = "6.0.1"
+reqwest = { workspace = true, features = ["json"] }
+router-config-lib = { path = "../router-config-lib/" }
+async-trait = "0.1.79"
+solana-client = { workspace = true }
+solana-account-decoder = "1.17"
+mango-feeds-connector = { workspace = true }
+router-feed-lib = { path = "../router-feed-lib" }
+router-test-lib = { path = "../router-test-lib" }
+futures-util = "0.3.30"
+tokio = "1.38.0"
+tracing = { version = "0.1", features = ["log"] }
+itertools = "0.10.5"
+bincode = "1.3.3"
+lz4 = "1.25.0"
+async-channel = "1.9.0"
+lazy_static = "1.5.0"
+anchor-spl = { version = "0.29.0", features = ["associated_token"] }

@@ -1,0 +1,42 @@
+router = "$ROUTER_URL"
+jupiter = "https://quote-api.jup.ag/v6"
+rpc_http_url = "$RPC_URL"
+outgoing_rpc_http_url = "$RPC_URL"
+wallet_pubkey = "BbHG9GvPActFGogv3iNrpDAj4qpXr8t3jF16uGxXcKci"
+execution_interval_sec = 2
+amounts = [100, 5000]
+birdeye_token = "$BIRDEYE_TOKEN"
+
+mints = [
+    "So11111111111111111111111111111111111111112",  # SOL
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", # USDC
+    "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn", # JitoSOL
+    "jupSoLaHXQiZZTSfEWMTRRgpnyFm8f6sZdosWBjx93v", # JupSol
+    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", # USDT
+    "5oVNBeEEQvYi1cX3ir8Dx5n1P7pdxydbGF2X4TxVusJm", # INF
+    "MangoCzJ36AjZyKwVj3VnYU4GTonjfVEnJmvvWaxLac", # MNGO
+    "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", # BONK
+    "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm", # WIF
+    "USDH1SM1ojwWUga67PGrgFWUHibbjqMvuMaDkRJTgkX", # USDH
+    "MangmsBgFqJhW4cLUR9LxfVgMboY1xAoP8UUBiWwwuY", # MangoSol
+    "DriFtupJYLTosbwoN8koMbEYSx54aFAVLddWsbksjwg7", # Drift
+    "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr", # Poccat
+    "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So", # mSOL
+    "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN", # JUP
+    "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4", # JLP
+    "KMNo3nJsBXfcpJTVhZcXLW7RmTwTt4GVFE7suUBo9sS", # KMNO
+    "4DBgRWs63QzBwj71Qxiiz49DUZJi2QgUha7cbadepump", # DERP
+    "3S8qX1MsMqRbiwKg2cQyx7nis1oHMgaCuc9c4VfvVdPN", # MOTHER
+    "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82", # BOME
+]
+use_mango_tokens = true
+persist = true
+
+[postgres]
+connection_string = "$PG_CONNECTION_STRING"
+max_retry_count = 2
+allow_invalid_certs = true
+
+[postgres.tls]
+ca_cert_path = "$PG_CA_CERT"
+client_key_path = "$PG_CLIENT_KEY"

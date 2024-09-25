@@ -1,0 +1,12 @@
+router = "http://router-1.internal:8888"
+rpc_http_url = "$RPC_URL"
+outgoing_rpc_http_url = "$RPC_URL"
+owner = "$KEYPAIR_PATH"
+execution_interval_sec = 120
+
+mints = []
+use_mango_tokens = true
+
+# Random amount will be selected from this list (in USDC native)
+amounts = [2000000, 30000000]
+

@@ -1,0 +1,21 @@
+[metrics]
+enabled = true
+
+[source]
+rpc_http_url = "not used"
+dedup_queue_size = 50000
+
+[[source.grpc_sources]]
+name = "router-indexer"
+connection_string = "$RPC_HTTP_URL_WITHOUT_TOKEN"
+token = "$RPC_TOKEN"
+retry_connection_sleep_secs = 30
+
+[postgres]
+connection_string = "$PG_CONNECTION_STRING"
+max_retry_count = 2
+allow_invalid_certs = true
+
+[postgres.tls]
+ca_cert_path = "$PG_CA_CERT"
+client_key_path = "$PG_CLIENT_KEY"
