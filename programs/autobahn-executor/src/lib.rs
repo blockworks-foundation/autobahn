@@ -16,13 +16,7 @@ use solana_program::{account_info::AccountInfo, pubkey::Pubkey};
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
 
-declare_id!("EXECM4wjzdCnrtQjHx5hy1r5k31tdvWBPYbqsjSoPfAh");
-
-mod mango_owner {
-    use solana_program::declare_id;
-
-    declare_id!("EXECM4wjzdCnrtQjHx5hy1r5k31tdvWBPYbqsjSoPfAh"); // TODO
-}
+declare_id!("AutobNFLMzX1rFCDgwWpwr3ztG5c1oDbSrGq7Jj2LgE");
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
