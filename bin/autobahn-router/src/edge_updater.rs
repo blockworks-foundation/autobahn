@@ -29,28 +29,6 @@ pub struct Dex {
 }
 
 impl Dex {
-    pub fn _desc(&self) -> String {
-        match &self.subscription_mode {
-            DexSubscriptionMode::Disabled => {
-                format!("Dex {} mode=Disabled", self.name)
-            }
-            DexSubscriptionMode::Accounts(subscribed_pks) => {
-                format!("Dex {} mode=gMa #pks={}", self.name, subscribed_pks.len())
-            }
-            DexSubscriptionMode::Programs(subscribed_prgs) => format!(
-                "Dex {} mode=gPa program_ids={:?}",
-                self.name, subscribed_prgs
-            ),
-            DexSubscriptionMode::Mixed(m) => format!(
-                "Dex {} mode=mix #pks={} program_ids={:?}, tokens_for_owners={:?}",
-                self.name,
-                m.accounts.len(),
-                m.programs,
-                m.token_accounts_for_owner
-            ),
-        }
-    }
-
     pub fn edges(&self) -> Vec<Arc<Edge>> {
         let edges: Vec<Arc<Edge>> = self
             .edges_per_pk

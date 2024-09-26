@@ -1,10 +1,35 @@
 use crate::edge_updater::{spawn_updater_job, Dex};
+use crate::hot_mints::HotMintsCache;
 use crate::ix_builder::{SwapInstructionsBuilderImpl, SwapStepInstructionBuilderImpl};
+use crate::liquidity::{spawn_liquidity_updater_job, LiquidityProvider};
 use crate::path_warmer::spawn_path_warmer_job;
+use crate::prometheus_sync::PrometheusSync;
+use crate::routing::Routing;
+use crate::server::alt_provider::RpcAltProvider;
+use crate::server::hash_provider::RpcHashProvider;
+use crate::server::http_server::HttpServer;
+use crate::server::live_account_provider::LiveAccountProvider;
+use crate::server::route_provider::RoutingRouteProvider;
+use crate::source::mint_accounts_source::{request_mint_metadata, Token};
+use crate::token_cache::{Decimals, TokenCache};
+use crate::tx_watcher::spawn_tx_watcher_jobs;
+use crate::util::tokio_spawn;
+use dex_orca::OrcaDex;
 use itertools::chain;
 use mango_feeds_connector::chain_data::ChainData;
 use mango_feeds_connector::SlotUpdate;
 use prelude::*;
+use router_config_lib::{string_or_env, AccountDataSourceConfig, Config};
+use router_feed_lib::account_write::{AccountOrSnapshotUpdate, AccountWrite};
+use router_feed_lib::get_program_account::FeedMetadata;
+use router_feed_lib::router_rpc_client::RouterRpcClient;
+use router_feed_lib::router_rpc_wrapper::RouterRpcWrapper;
+use router_lib::chain_data::ChainDataArcRw;
+use router_lib::dex::{
+    AccountProviderView, ChainDataAccountProvider, DexInterface, DexSubscriptionMode,
+};
+use router_lib::mango;
+use router_lib::price_feeds::composite::CompositePriceFeed;
 use router_lib::price_feeds::price_cache::PriceCache;
 use router_lib::price_feeds::price_feed::PriceFeed;
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -18,31 +43,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 
-use crate::hot_mints::HotMintsCache;
-use crate::prometheus_sync::PrometheusSync;
-use crate::routing::Routing;
-use crate::server::alt_provider::RpcAltProvider;
-use crate::server::hash_provider::RpcHashProvider;
-use crate::server::http_server::HttpServer;
-use crate::server::live_account_provider::LiveAccountProvider;
-use crate::server::route_provider::RoutingRouteProvider;
-use crate::source::mint_accounts_source::{request_mint_metadata, Token};
-use crate::token_cache::{Decimals, TokenCache};
-use crate::tx_watcher::spawn_tx_watcher_jobs;
-use crate::util::tokio_spawn;
-use dex_orca::OrcaDex;
-use router_config_lib::{string_or_env, AccountDataSourceConfig, Config};
-use router_feed_lib::account_write::{AccountOrSnapshotUpdate, AccountWrite};
-use router_feed_lib::get_program_account::FeedMetadata;
-use router_feed_lib::router_rpc_client::RouterRpcClient;
-use router_feed_lib::router_rpc_wrapper::RouterRpcWrapper;
-use router_lib::chain_data::ChainDataArcRw;
-use router_lib::dex::{
-    AccountProviderView, ChainDataAccountProvider, DexInterface, DexSubscriptionMode,
-};
-use router_lib::mango;
-use router_lib::price_feeds::composite::CompositePriceFeed;
-
 mod alt;
 mod debug_tools;
 mod dex;
@@ -50,6 +50,7 @@ pub mod edge;
 mod edge_updater;
 mod hot_mints;
 pub mod ix_builder;
+mod liquidity;
 mod metrics;
 mod mock;
 mod path_warmer;
@@ -378,11 +379,23 @@ async fn main() -> anyhow::Result<()> {
         router_version as u8,
     ));
 
+    let liquidity_provider = Arc::new(RwLock::new(LiquidityProvider::new(
+        token_cache.clone(),
+        price_cache.clone(),
+    )));
+    let liquidity_job = spawn_liquidity_updater_job(
+        liquidity_provider.clone(),
+        edges.clone(),
+        chain_data_wrapper,
+        exit_sender.subscribe(),
+    );
+
     let server_job = HttpServer::start(
         route_provider.clone(),
         hash_provider,
         alt_provider,
         live_account_provider,
+        liquidity_provider.clone(),
         ix_builder,
         config.clone(),
         exit_sender.subscribe(),
@@ -495,6 +508,7 @@ async fn main() -> anyhow::Result<()> {
         tx_sender_job,
         tx_watcher_job,
         account_update_job,
+        liquidity_job,
     ]
     .into_iter()
     .chain(update_jobs.into_iter())
