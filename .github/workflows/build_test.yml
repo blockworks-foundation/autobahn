@@ -1,0 +1,140 @@
+name: Cargo Build & Test
+
+on:
+  push:
+    branches:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  SCCACHE_GHA_ENABLED: true
+  RUSTC_WRAPPER: sccache
+  SCCACHE_CACHE_SIZE: "1G"
+  SOLANA_VERSION: '1.18.8'
+
+jobs:
+  build_and_test:
+    name: Router full build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Linux Packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install libssl-dev openssl -y
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The toolchain action should definitely be run before the cache action
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: true
+          # avoid the default "-D warnings" which thrashes cache
+          rustflags: ""
+
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
+
+      # https://github.com/actions/cache/blob/main/examples.md#rust---cargo
+      # https://blog.arriven.wtf/posts/rust-ci-cache/
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # will be covered by sscache
+          cache-targets: false
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Solana
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v${{ env.SOLANA_VERSION }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          solana --version
+          echo "Generating keypair..."
+          solana-keygen new -o "$HOME/.config/solana/id.json" --no-passphrase --silent
+          echo Installing sbf toolchain...
+          (cd /home/runner/.local/share/solana/install/active_release/bin/sdk/sbf/scripts; ./install.sh)
+
+      - name: Build All Targets
+        run: cargo build --locked --workspace --all-targets
+
+      - name: Test autobahn-router
+        run: cargo test --locked --workspace --package autobahn-router --bin autobahn-router
+
+      - name: Build sbf programs
+        run: cargo build-sbf
+
+      - name: Test Executor
+        run: cargo test-sbf --package autobahn-executor
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The toolchain action should definitely be run before the cache action
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: true
+          # avoid the default "-D warnings" which thrashes cache
+          rustflags: ""
+
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
+
+      # https://github.com/actions/cache/blob/main/examples.md#rust---cargo
+      # https://blog.arriven.wtf/posts/rust-ci-cache/
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # will be covered by sscache
+          cache-targets: false
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Solana
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v${{ env.SOLANA_VERSION }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          solana --version
+          echo "Generating keypair..."
+          solana-keygen new -o "$HOME/.config/solana/id.json" --no-passphrase --silent
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Build all deps
+        run: |
+          cargo build-sbf --verbose
+
+      - name: Generate code coverage
+        run: cargo llvm-cov --package autobahn-executor --lcov --output-path lcov.info -- --nocapture
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          verbose: true
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  sca:
+    name: Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Fail the job on critical vulnerabilities with fix available
+      - name: Fail on critical vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'Cargo.lock'
+          ignore-unfixed: true
+          hide-progress: true
+          format: 'table'
+          severity: 'CRITICAL'
+          exit-code: '1'

@@ -1,0 +1,11 @@
+.DS_Store
+
+target
+config
+
+**/*.rs.bk
+
+.idea
+.vscode
+profile.json
+*.lz4
