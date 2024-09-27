@@ -81,7 +81,7 @@ impl PriceFeed for CompositePriceFeed {
 impl CompositePriceFeed {
     async fn refresh(
         birdeye_token: &String,
-        birdeye_signle_mode: bool,
+        birdeye_single_mode: bool,
         mints: &HashSet<Pubkey>,
         sender: broadcast::Sender<PriceUpdate>,
     ) -> anyhow::Result<()> {
@@ -89,7 +89,7 @@ impl CompositePriceFeed {
         for chunk in mints.chunks(10_000) {
             let chunk = chunk.iter().copied().collect();
 
-            Self::refresh_chunk(birdeye_token, birdeye_signle_mode, &chunk, sender.clone()).await?;
+            Self::refresh_chunk(birdeye_token, birdeye_single_mode, &chunk, sender.clone()).await?;
         }
 
         Ok(())
