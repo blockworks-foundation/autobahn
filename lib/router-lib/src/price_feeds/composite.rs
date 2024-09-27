@@ -2,11 +2,13 @@ use crate::price_feeds::birdeye::BirdeyePriceFeed;
 use crate::price_feeds::birdeye_single::BirdeyeSinglePriceFeed;
 use crate::price_feeds::fillcity::FillCityPriceFeed;
 use crate::price_feeds::price_feed::{PriceFeed, PriceUpdate};
+use itertools::Itertools;
 use router_config_lib::PriceFeedConfig;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashSet;
 use std::time::Duration;
 use tokio::sync::broadcast;
+use tokio::sync::broadcast::Sender;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 
@@ -83,7 +85,23 @@ impl CompositePriceFeed {
         mints: &HashSet<Pubkey>,
         sender: broadcast::Sender<PriceUpdate>,
     ) -> anyhow::Result<()> {
-        let (local_sender, mut local_receiver) = broadcast::channel::<PriceUpdate>(10_000);
+        let mints = mints.iter().copied().collect_vec();
+        for chunk in mints.chunks(10_000) {
+            let chunk = chunk.iter().copied().collect();
+
+            Self::refresh_chunk(birdeye_token, birdeye_signle_mode, &chunk, sender.clone()).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn refresh_chunk(
+        birdeye_token: &String,
+        birdeye_single_mode: bool,
+        mints: &HashSet<Pubkey>,
+        sender: Sender<PriceUpdate>,
+    ) -> anyhow::Result<()> {
+        let (local_sender, mut local_receiver) = broadcast::channel::<PriceUpdate>(mints.len() + 1);
 
         info!("Querying price with fill city for {} mints", mints.len());
 
@@ -94,7 +112,7 @@ impl CompositePriceFeed {
         if !mints.is_empty() {
             info!("Querying price with birdeye for {} mints", mints.len());
 
-            let result = if birdeye_signle_mode {
+            let result = if birdeye_single_mode {
                 BirdeyeSinglePriceFeed::refresh(
                     birdeye_token.to_string(),
                     &mints,
@@ -108,7 +126,6 @@ impl CompositePriceFeed {
             Self::handle_source_results(&mints, sender.clone(), &mut local_receiver, result)
                 .await?;
         }
-
         Ok(())
     }
 
