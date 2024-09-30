@@ -55,28 +55,6 @@ impl DexInterface for RaydiumDex {
             })
             .collect_vec();
 
-        let vaults = filtered_pools
-            .iter()
-            .flat_map(|x| [x.1.coin_vault, x.1.pc_vault])
-            .collect::<HashSet<_>>();
-        let vaults = rpc.get_multiple_accounts(&vaults).await?;
-        let banned_vaults = vaults
-            .iter()
-            .filter(|x| {
-                x.1.owner == Token::id()
-                    && spl_token::state::Account::unpack(x.1.data()).unwrap().state
-                        == AccountState::Frozen
-            })
-            .map(|x| x.0)
-            .collect::<HashSet<_>>();
-
-        let filtered_pools = filtered_pools
-            .into_iter()
-            .filter(|(_, amm)| {
-                !banned_vaults.contains(&amm.coin_vault) && !banned_vaults.contains(&amm.pc_vault)
-            })
-            .collect_vec();
-
         info!(
             "Number of raydium AMM post filtering: {:?}",
             filtered_pools.len()
@@ -177,6 +155,18 @@ impl DexInterface for RaydiumDex {
         let amm = &edge.amm;
         let coin_vault = &edge.coin_vault;
         let pc_vault = &edge.pc_vault;
+
+        let coin_vault_is_frozen = coin_vault.state == AccountState::Frozen;
+        let pc_vault_is_frozen = pc_vault.state == AccountState::Frozen;
+
+        if coin_vault_is_frozen || pc_vault_is_frozen {
+            return Ok(Quote {
+                in_amount,
+                out_amount: 0,
+                fee_amount: 0,
+                fee_mint: Default::default(),
+            });
+        }
 
         let swap_direction = if id.is_pc_to_coin {
             SwapDirection::PC2Coin
