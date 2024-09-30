@@ -186,6 +186,7 @@ pub async fn process_tx_events(
     let mut source_jobs = vec![];
 
     let Some(grpc_sources) = config.grpc_sources.clone() else {
+        error!("There should be atleast one grpc source specified");
         return;
     };
 

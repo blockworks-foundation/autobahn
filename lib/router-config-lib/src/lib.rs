@@ -44,6 +44,7 @@ pub struct Config {
     pub safety_checks: Option<SafetyCheckConfig>,
     pub hot_mints: Option<HotMintsConfig>,
     pub debug_config: Option<DebugConfig>,
+    pub snapshot_timeout_in_seconds: Option<u64>,
 }
 
 impl Config {
