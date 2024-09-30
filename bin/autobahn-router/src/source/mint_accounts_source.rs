@@ -12,7 +12,7 @@ use solana_sdk::commitment_config::CommitmentConfig;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 use tracing::{info, trace};
 
@@ -88,7 +88,8 @@ pub async fn request_mint_metadata(
                     count.fetch_add(1, Ordering::Relaxed);
                 }
             }
-
+            // sleep for sometime to avoid overburdening the RPC server
+            tokio::time::sleep(Duration::from_millis(400)).await;
             mint_accounts
         });
         threads.push(jh_thread);

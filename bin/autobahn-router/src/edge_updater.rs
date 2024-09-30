@@ -138,7 +138,7 @@ pub fn spawn_updater_job(
         ),
     };
 
-    let snapshot_timeout = Instant::now() + Duration::from_secs(60 * 5);
+    let snapshot_timeout = Instant::now() + Duration::from_secs(60 * 15);
     let listener_job = tokio_spawn(format!("edge_updater_{}", dex.name).as_str(), async move {
         let mut updater = EdgeUpdater {
             dex,

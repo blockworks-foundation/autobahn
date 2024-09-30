@@ -175,19 +175,28 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    if source_config.grpc_sources.len() > 1 {
-        error!("only one grpc source is supported ATM");
-        exit(-1);
+    if let Some(quic_sources) = &source_config.quic_sources {
+        info!(
+            "quic sources: {}",
+            quic_sources
+                .iter()
+                .map(|c| c.connection_string.clone())
+                .collect::<String>()
+        );
     }
-
-    info!(
-        "grpc sources: {}",
-        source_config
-            .grpc_sources
-            .iter()
-            .map(|c| c.connection_string.clone())
-            .collect::<String>()
-    );
+    if let Some(grpc_sources) = source_config.grpc_sources.clone() {
+        info!(
+            "grpc sources: {}",
+            grpc_sources
+                .iter()
+                .map(|c| c.connection_string.clone())
+                .collect::<String>()
+        );
+    } else {
+        // current grpc source is needed for transaction watcher even if there is quic
+        error!("No grpc geyser sources specified");
+        exit(-1);
+    };
 
     if config.metrics.output_http {
         let prom_bind_addr = config
@@ -443,8 +452,8 @@ async fn main() -> anyhow::Result<()> {
     let ef = exit_sender.subscribe();
     let sc = source_config.clone();
     let account_update_job = tokio_spawn("geyser", async move {
-        if sc.use_quic.unwrap_or(false) {
-            error!("not supported yet");
+        if sc.grpc_sources.is_none() && sc.quic_sources.is_none() {
+            error!("No quic or grpc plugin setup");
         } else {
             geyser::spawn_geyser_source(
                 &sc,
@@ -528,7 +537,7 @@ fn build_price_feed(
 fn build_rpc(source_config: &AccountDataSourceConfig) -> RpcClient {
     RpcClient::new_with_timeouts_and_commitment(
         string_or_env(source_config.rpc_http_url.clone()),
-        Duration::from_secs(60), // request timeout
+        Duration::from_secs(source_config.request_timeout_in_seconds.unwrap_or(60)), // request timeout
         CommitmentConfig::confirmed(),
         Duration::from_secs(60), // confirmation timeout
     )
@@ -537,7 +546,7 @@ fn build_rpc(source_config: &AccountDataSourceConfig) -> RpcClient {
 fn build_blocking_rpc(source_config: &AccountDataSourceConfig) -> BlockingRpcClient {
     BlockingRpcClient::new_with_timeouts_and_commitment(
         string_or_env(source_config.rpc_http_url.clone()),
-        Duration::from_secs(60), // request timeout
+        Duration::from_secs(source_config.request_timeout_in_seconds.unwrap_or(60)), // request timeout
         CommitmentConfig::confirmed(),
         Duration::from_secs(60), // confirmation timeout
     )
