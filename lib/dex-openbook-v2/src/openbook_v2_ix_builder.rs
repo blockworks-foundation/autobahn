@@ -95,7 +95,7 @@ pub fn build_swap_ix(
     );
 
     let instruction = Instruction {
-        program_id: autobahn_executor::id(),
+        program_id: router_lib::autobahn_executor::id(),
         accounts: account_metas,
         data,
     };
