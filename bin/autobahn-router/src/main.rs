@@ -125,6 +125,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|| panic!("did not find a source config for region {}", region));
 
     let rpc = build_rpc(&source_config);
+    let number_of_accounts_per_gma = source_config.number_of_accounts_per_gma.unwrap_or(100);
 
     // handle sigint
     let exit_flag: Arc<atomic::AtomicBool> = Arc::new(atomic::AtomicBool::new(false));
@@ -313,7 +314,12 @@ async fn main() -> anyhow::Result<()> {
     info!("Using {} mints", mints.len(),);
 
     let token_cache = {
-        let mint_metadata = request_mint_metadata(&source_config.rpc_http_url, &mints).await;
+        let mint_metadata = request_mint_metadata(
+            &source_config.rpc_http_url,
+            &mints,
+            number_of_accounts_per_gma,
+        )
+        .await;
         let mut data: HashMap<Pubkey, token_cache::Decimals> = HashMap::new();
         for (mint_pubkey, Token { mint, decimals }) in mint_metadata {
             assert_eq!(mint_pubkey, mint);

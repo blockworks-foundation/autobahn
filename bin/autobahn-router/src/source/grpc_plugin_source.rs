@@ -43,7 +43,6 @@ use yellowstone_grpc_proto::geyser::{
 use yellowstone_grpc_proto::tonic::codec::CompressionEncoding;
 
 const MAX_GRPC_ACCOUNT_SUBSCRIPTIONS: usize = 100;
-const MAX_GMA_ACCOUNTS: usize = 100;
 
 // limit number of concurrent gMA/gPA requests
 const MAX_PARALLEL_HEAVY_RPC_REQUESTS: usize = 4;
@@ -72,6 +71,7 @@ pub async fn feed_data_geyser(
     sender: async_channel::Sender<SourceMessage>,
 ) -> anyhow::Result<()> {
     let use_compression = snapshot_config.rpc_support_compression.unwrap_or(false);
+    let number_of_accounts_per_gma = snapshot_config.number_of_accounts_per_gma.unwrap_or(100);
     let grpc_connection_string = match &grpc_config.connection_string.chars().next().unwrap() {
         '$' => env::var(&grpc_config.connection_string[1..])
             .expect("reading connection string from env"),
@@ -336,7 +336,7 @@ pub async fn feed_data_geyser(
                                 let permits_parallel_rpc_requests = Arc::new(Semaphore::new(MAX_PARALLEL_HEAVY_RPC_REQUESTS));
 
                                 info!("Requesting snapshot from gMA for {} filter accounts", accounts_filter.len());
-                                for pubkey_chunk in accounts_filter.iter().chunks(MAX_GMA_ACCOUNTS).into_iter() {
+                                for pubkey_chunk in accounts_filter.iter().chunks(number_of_accounts_per_gma).into_iter() {
                                     let rpc_http_url = snapshot_rpc_http_url.clone();
                                     let account_ids = pubkey_chunk.cloned().collect_vec();
                                     let sender = snapshot_gma_sender.clone();

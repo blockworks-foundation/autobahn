@@ -29,6 +29,7 @@ pub async fn main() {
         grpc_sources: Some(vec![]),
         dedup_queue_size: 0,
         request_timeout_in_seconds: None,
+        number_of_accounts_per_gma: None,
     };
 
     // Raydium

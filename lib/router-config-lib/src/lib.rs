@@ -96,6 +96,7 @@ pub struct AccountDataSourceConfig {
     pub grpc_sources: Option<Vec<GrpcSourceConfig>>,
     pub dedup_queue_size: usize,
     pub request_timeout_in_seconds: Option<u64>,
+    pub number_of_accounts_per_gma: Option<usize>,
 }
 
 #[derive(Clone, Debug, serde_derive::Deserialize)]
