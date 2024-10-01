@@ -22,13 +22,13 @@ pub async fn main() {
     let rpc_http_addr = env::var("RPC_HTTP_ADDR").expect("need rpc http url");
     let snapshot_config = AccountDataSourceConfig {
         region: None,
-        use_quic: None,
-        quic_address: None,
+        quic_sources: None,
         rpc_http_url: rpc_http_addr.clone(),
         rpc_support_compression: Some(false), /* no compression */
         re_snapshot_interval_secs: None,
-        grpc_sources: vec![],
+        grpc_sources: Some(vec![]),
         dedup_queue_size: 0,
+        request_timeout_in_seconds: None,
     };
 
     // Raydium

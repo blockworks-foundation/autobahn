@@ -208,8 +208,7 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
             quote.output_amount != received_out_amount
         };
 
-        if unexpected_in_amount || unexpected_out_amount
-        {
+        if unexpected_in_amount || unexpected_out_amount {
             debug_print_ix(
                 &mut success,
                 &mut index,
@@ -270,7 +269,11 @@ async fn debug_print_ix(
     error!(
         "Faulty swapping #{} quote{}: \r\n{} -> {} ({} -> {})\r\n (successfully run {} swap)",
         index,
-        if quote.is_exact_out { " (ExactOut)" } else { "" },
+        if quote.is_exact_out {
+            " (ExactOut)"
+        } else {
+            ""
+        },
         quote.input_mint,
         quote.output_mint,
         quote.input_amount,

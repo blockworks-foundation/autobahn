@@ -88,7 +88,6 @@ pub async fn request_mint_metadata(
                     count.fetch_add(1, Ordering::Relaxed);
                 }
             }
-
             mint_accounts
         });
         threads.push(jh_thread);

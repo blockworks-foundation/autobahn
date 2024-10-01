@@ -185,7 +185,11 @@ pub async fn process_tx_events(
     let (msg_sender, msg_receiver) = async_channel::bounded::<ExecTx>(config.dedup_queue_size);
     let mut source_jobs = vec![];
 
-    for grpc_source in config.grpc_sources.clone() {
+    let Some(grpc_sources) = config.grpc_sources.clone() else {
+        panic!("There should be atleast one grpc source specified for grpc tx watcher");
+    };
+
+    for grpc_source in grpc_sources.clone() {
         let msg_sender = msg_sender.clone();
 
         // Make TLS config if configured

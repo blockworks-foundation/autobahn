@@ -27,6 +27,23 @@ lazy_static::lazy_static! {
     pub static ref GRPC_TO_EDGE_SLOT_LAG: IntGaugeVec =
         register_int_gauge_vec!(opts!("router_grpc_to_edge_slot_lag", "RPC Slot vs last slot used to update edges"), &["dex_name"]).unwrap();
 
+    pub static ref QUIC_ACCOUNT_WRITES: IntCounter =
+        register_int_counter!("quic_account_writes", "Number of account updates via Geyser gRPC").unwrap();
+    pub static ref QUIC_ACCOUNT_WRITE_QUEUE: IntGauge =
+        register_int_gauge!("quic_account_write_queue", "Items in account write queue via Geyser gPRC").unwrap();
+    pub static ref QUIC_DEDUP_QUEUE: GenericGauge<prometheus::core::AtomicI64> =
+        register_int_gauge!("quic_dedup_queue", "Items in dedup queue via Geyser gPRC").unwrap();
+    pub static ref QUIC_SLOT_UPDATE_QUEUE: GenericGauge<prometheus::core::AtomicI64> =
+        register_int_gauge!("quic_slot_update_queue", "Items in slot update queue via Geyser gPRC").unwrap();
+    pub static ref QUIC_SLOT_UPDATES: IntCounter =
+        register_int_counter!("quic_slot_updates", "Number of slot updates via Geyser gPRC").unwrap();
+    pub static ref QUIC_SNAPSHOT_ACCOUNT_WRITES: IntCounter =
+        register_int_counter!("quic_snapshot_account_writes", "Number of account writes from snapshot").unwrap();
+     pub static ref QUIC_SOURCE_CONNECTION_RETRIES: IntCounterVec =
+        register_int_counter_vec!(opts!("quic_source_connection_retries", "gRPC source connection retries"), &["source_name"]).unwrap();
+    pub static ref QUIC_NO_MESSAGE_FOR_DURATION_MS: IntGauge =
+        register_int_gauge!("quic_no_update_for_duration_ms", "Did not get any message from Geyser gPRC for this duration").unwrap();
+
     pub static ref HTTP_REQUEST_TIMING: HistogramVec =
         register_histogram_vec!(
             histogram_opts!("router_http_request_timing", "Endpoint timing in seconds",
