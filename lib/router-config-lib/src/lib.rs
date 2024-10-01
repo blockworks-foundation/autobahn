@@ -12,6 +12,14 @@ pub struct GrpcSourceConfig {
 }
 
 #[derive(Clone, Debug, Default, serde_derive::Deserialize)]
+pub struct QuicSourceConfig {
+    pub name: String,
+    pub connection_string: String,
+    pub retry_connection_sleep_secs: u64,
+    pub enable_gso: Option<bool>,
+}
+
+#[derive(Clone, Debug, Default, serde_derive::Deserialize)]
 pub struct TlsConfig {
     pub ca_cert_path: String,
     pub client_cert_path: String,
@@ -36,6 +44,7 @@ pub struct Config {
     pub safety_checks: Option<SafetyCheckConfig>,
     pub hot_mints: Option<HotMintsConfig>,
     pub debug_config: Option<DebugConfig>,
+    pub snapshot_timeout_in_seconds: Option<u64>,
 }
 
 impl Config {
@@ -78,16 +87,16 @@ pub struct InfinityConfig {
 #[derive(Clone, Debug, Default, serde_derive::Deserialize)]
 pub struct AccountDataSourceConfig {
     pub region: Option<String>,
-    pub use_quic: Option<bool>,
-    #[serde(deserialize_with = "serde_opt_string_or_env", default)]
-    pub quic_address: Option<String>,
+    pub quic_sources: Option<Vec<QuicSourceConfig>>,
     #[serde(deserialize_with = "serde_string_or_env")]
     pub rpc_http_url: String,
     // does RPC node support getProgramAccountsCompressed
     pub rpc_support_compression: Option<bool>,
     pub re_snapshot_interval_secs: Option<u64>,
-    pub grpc_sources: Vec<GrpcSourceConfig>,
+    pub grpc_sources: Option<Vec<GrpcSourceConfig>>,
     pub dedup_queue_size: usize,
+    pub request_timeout_in_seconds: Option<u64>,
+    pub number_of_accounts_per_gma: Option<usize>,
 }
 
 #[derive(Clone, Debug, serde_derive::Deserialize)]

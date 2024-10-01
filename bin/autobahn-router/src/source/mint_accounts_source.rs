@@ -16,7 +16,6 @@ use std::time::Instant;
 use tokio::sync::Semaphore;
 use tracing::{info, trace};
 
-const MAX_GMA_ACCOUNTS: usize = 100;
 // 4: 388028 mints -> 61 sec
 // 16: 388028 mints -> 35 sec
 const MAX_PARALLEL_HEAVY_RPC_REQUESTS: usize = 16;
@@ -30,6 +29,7 @@ pub struct Token {
 pub async fn request_mint_metadata(
     rpc_http_url: &str,
     mint_account_ids: &HashSet<Pubkey>,
+    max_gma_accounts: usize,
 ) -> HashMap<Pubkey, Token> {
     info!(
         "Requesting data for mint accounts via chunked gMA for {} pubkey ..",
@@ -51,7 +51,7 @@ pub async fn request_mint_metadata(
 
     let mut threads = Vec::new();
     let count = Arc::new(AtomicU64::new(0));
-    for pubkey_chunk in mint_account_ids.iter().chunks(MAX_GMA_ACCOUNTS).into_iter() {
+    for pubkey_chunk in mint_account_ids.iter().chunks(max_gma_accounts).into_iter() {
         let pubkey_chunk = pubkey_chunk.into_iter().cloned().collect_vec();
         let count = count.clone();
         let rpc_client = rpc_client.clone();
@@ -88,7 +88,6 @@ pub async fn request_mint_metadata(
                     count.fetch_add(1, Ordering::Relaxed);
                 }
             }
-
             mint_accounts
         });
         threads.push(jh_thread);

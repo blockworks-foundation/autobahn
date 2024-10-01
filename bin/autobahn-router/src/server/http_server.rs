@@ -21,12 +21,15 @@ use tower_http::cors::{AllowHeaders, AllowMethods, Any, CorsLayer};
 
 use crate::alt::alt_optimizer;
 use crate::ix_builder::SwapInstructionsBuilder;
+use crate::liquidity::{LiquidityProvider, LiquidityProviderArcRw};
 use crate::routing_types::Route;
 use crate::server::alt_provider::AltProvider;
 use crate::server::hash_provider::HashProvider;
 use crate::{debug_tools, metrics};
 use router_config_lib::Config;
 use router_lib::dex::{AccountProvider, AccountProviderView, SwapMode};
+use router_lib::model::liquidity_request::LiquidityRequest;
+use router_lib::model::liquidity_response::LiquidityResponse;
 use router_lib::model::quote_response::{RoutePlan, SwapInfo};
 
 // make sure the transaction can be executed
@@ -49,6 +52,7 @@ impl HttpServer {
         hash_provider: Arc<THashProvider>,
         alt_provider: Arc<TAltProvider>,
         live_account_provider: Arc<TAccountProvider>,
+        liquidity_provider: LiquidityProviderArcRw,
         ix_builder: Arc<TIxBuilder>,
         config: Config,
         exit: tokio::sync::broadcast::Receiver<()>,
@@ -58,6 +62,7 @@ impl HttpServer {
             hash_provider,
             alt_provider,
             live_account_provider,
+            liquidity_provider,
             ix_builder,
             config,
             exit,
@@ -80,6 +85,7 @@ impl HttpServer {
         hash_provider: Arc<THashProvider>,
         alt_provider: Arc<TAltProvider>,
         live_account_provider: Arc<TAccountProvider>,
+        liquidity_provider: LiquidityProviderArcRw,
         ix_builder: Arc<TIxBuilder>,
         config: Config,
         exit: tokio::sync::broadcast::Receiver<()>,
@@ -107,6 +113,7 @@ impl HttpServer {
             hash_provider,
             alt_provider,
             live_account_provider,
+            liquidity_provider,
             ix_builder,
             reprice_frequency,
         )?;
@@ -462,6 +469,28 @@ impl HttpServer {
         Html("マンゴールーター")
     }
 
+    async fn liquidity_handler(
+        liquidity_provider: LiquidityProviderArcRw,
+        Form(input): Form<LiquidityRequest>,
+    ) -> Result<Json<Value>, AppError> {
+        let mut result = HashMap::new();
+        let reader = liquidity_provider.read().unwrap();
+
+        for mint_str in input.mints.split(",") {
+            let mint_str = mint_str.trim().to_string();
+            let mint = Pubkey::from_str(&mint_str)?;
+            result.insert(
+                mint_str,
+                reader.get_total_liquidity_in_dollars(mint).unwrap_or(0.0),
+            );
+        }
+
+        drop(reader);
+        let json_response = serde_json::json!(LiquidityResponse { liquidity: result });
+
+        Ok(Json(json_response))
+    }
+
     fn extract_client_key(headers: &HeaderMap) -> &str {
         if let Some(client_key) = headers.get("x-client-key") {
             client_key.to_str().unwrap_or("invalid")
@@ -482,6 +511,7 @@ impl HttpServer {
         hash_provider: Arc<THashProvider>,
         alt_provider: Arc<TAltProvider>,
         live_account_provider: Arc<TAccountProvider>,
+        liquidity_provider: LiquidityProviderArcRw,
         ix_builder: Arc<TIxBuilder>,
         reprice_probability: f64,
     ) -> anyhow::Result<Router<()>> {
@@ -494,6 +524,12 @@ impl HttpServer {
             .allow_origin(Any);
 
         router = router.route("/", routing::get(Self::handler));
+
+        let lp = liquidity_provider.clone();
+        router = router.route(
+            "/liquidity",
+            routing::get(move |form| Self::liquidity_handler(lp, form)),
+        );
 
         let alt = address_lookup_tables.clone();
         let rp = route_provider.clone();

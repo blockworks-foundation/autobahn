@@ -1,5 +1,3 @@
-use std::any::Any;
-use std::panic;
 use anchor_lang::Id;
 use anchor_spl::token::Token;
 use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::TransferFeeConfig;
@@ -14,6 +12,8 @@ use solana_program::clock::Clock;
 use solana_program::pubkey::Pubkey;
 use solana_program::sysvar::Sysvar;
 use solana_sdk::account::ReadableAccount;
+use std::any::Any;
+use std::panic;
 
 use router_lib::dex::{DexEdge, DexEdgeIdentifier};
 
@@ -189,8 +189,7 @@ pub fn swap_base_output(
     output_mint: &Option<TransferFeeConfig>,
     amount_out: u64,
 ) -> anyhow::Result<(u64, u64, u64)> {
-    let res = panic::catch_unwind(||
-    {
+    let res = panic::catch_unwind(|| {
         let pool_state = pool;
         let block_timestamp = pool_state.open_time + 1; // TODO FAS his is suppose to be the clock
         if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap)
@@ -269,7 +268,6 @@ pub fn swap_base_output(
     } else {
         anyhow::bail!("Something went wrong in raydium cp")
     }
-
 }
 
 pub fn get_transfer_fee(

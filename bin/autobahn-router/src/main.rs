@@ -1,10 +1,35 @@
 use crate::edge_updater::{spawn_updater_job, Dex};
+use crate::hot_mints::HotMintsCache;
 use crate::ix_builder::{SwapInstructionsBuilderImpl, SwapStepInstructionBuilderImpl};
+use crate::liquidity::{spawn_liquidity_updater_job, LiquidityProvider};
 use crate::path_warmer::spawn_path_warmer_job;
+use crate::prometheus_sync::PrometheusSync;
+use crate::routing::Routing;
+use crate::server::alt_provider::RpcAltProvider;
+use crate::server::hash_provider::RpcHashProvider;
+use crate::server::http_server::HttpServer;
+use crate::server::live_account_provider::LiveAccountProvider;
+use crate::server::route_provider::RoutingRouteProvider;
+use crate::source::mint_accounts_source::{request_mint_metadata, Token};
+use crate::token_cache::{Decimals, TokenCache};
+use crate::tx_watcher::spawn_tx_watcher_jobs;
+use crate::util::tokio_spawn;
+use dex_orca::OrcaDex;
 use itertools::chain;
 use mango_feeds_connector::chain_data::ChainData;
 use mango_feeds_connector::SlotUpdate;
 use prelude::*;
+use router_config_lib::{string_or_env, AccountDataSourceConfig, Config};
+use router_feed_lib::account_write::{AccountOrSnapshotUpdate, AccountWrite};
+use router_feed_lib::get_program_account::FeedMetadata;
+use router_feed_lib::router_rpc_client::RouterRpcClient;
+use router_feed_lib::router_rpc_wrapper::RouterRpcWrapper;
+use router_lib::chain_data::ChainDataArcRw;
+use router_lib::dex::{
+    AccountProviderView, ChainDataAccountProvider, DexInterface, DexSubscriptionMode,
+};
+use router_lib::mango;
+use router_lib::price_feeds::composite::CompositePriceFeed;
 use router_lib::price_feeds::price_cache::PriceCache;
 use router_lib::price_feeds::price_feed::PriceFeed;
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -18,31 +43,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 
-use crate::hot_mints::HotMintsCache;
-use crate::prometheus_sync::PrometheusSync;
-use crate::routing::Routing;
-use crate::server::alt_provider::RpcAltProvider;
-use crate::server::hash_provider::RpcHashProvider;
-use crate::server::http_server::HttpServer;
-use crate::server::live_account_provider::LiveAccountProvider;
-use crate::server::route_provider::RoutingRouteProvider;
-use crate::source::mint_accounts_source::{request_mint_metadata, Token};
-use crate::token_cache::{Decimals, TokenCache};
-use crate::tx_watcher::spawn_tx_watcher_jobs;
-use crate::util::tokio_spawn;
-use dex_orca::OrcaDex;
-use router_config_lib::{string_or_env, AccountDataSourceConfig, Config};
-use router_feed_lib::account_write::{AccountOrSnapshotUpdate, AccountWrite};
-use router_feed_lib::get_program_account::FeedMetadata;
-use router_feed_lib::router_rpc_client::RouterRpcClient;
-use router_feed_lib::router_rpc_wrapper::RouterRpcWrapper;
-use router_lib::chain_data::ChainDataArcRw;
-use router_lib::dex::{
-    AccountProviderView, ChainDataAccountProvider, DexInterface, DexSubscriptionMode,
-};
-use router_lib::mango;
-use router_lib::price_feeds::composite::CompositePriceFeed;
-
 mod alt;
 mod debug_tools;
 mod dex;
@@ -50,6 +50,7 @@ pub mod edge;
 mod edge_updater;
 mod hot_mints;
 pub mod ix_builder;
+mod liquidity;
 mod metrics;
 mod mock;
 mod path_warmer;
@@ -124,6 +125,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|| panic!("did not find a source config for region {}", region));
 
     let rpc = build_rpc(&source_config);
+    let number_of_accounts_per_gma = source_config.number_of_accounts_per_gma.unwrap_or(100);
 
     // handle sigint
     let exit_flag: Arc<atomic::AtomicBool> = Arc::new(atomic::AtomicBool::new(false));
@@ -144,7 +146,7 @@ async fn main() -> anyhow::Result<()> {
     let (metadata_write_sender, metadata_write_receiver) =
         async_channel::unbounded::<FeedMetadata>();
     let (slot_sender, slot_receiver) = async_channel::unbounded::<SlotUpdate>();
-    let (account_update_sender, _) = broadcast::channel(524288); // TODO this is huge, nut init snapshot will completely spam this
+    let (account_update_sender, _) = broadcast::channel(1048576); // TODO this is huge, but init snapshot will completely spam this
 
     let chain_data = Arc::new(RwLock::new(ChainData::new()));
     start_chaindata_updating(
@@ -175,19 +177,28 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    if source_config.grpc_sources.len() > 1 {
-        error!("only one grpc source is supported ATM");
-        exit(-1);
+    if let Some(quic_sources) = &source_config.quic_sources {
+        info!(
+            "quic sources: {}",
+            quic_sources
+                .iter()
+                .map(|c| c.connection_string.clone())
+                .collect::<String>()
+        );
     }
-
-    info!(
-        "grpc sources: {}",
-        source_config
-            .grpc_sources
-            .iter()
-            .map(|c| c.connection_string.clone())
-            .collect::<String>()
-    );
+    if let Some(grpc_sources) = source_config.grpc_sources.clone() {
+        info!(
+            "grpc sources: {}",
+            grpc_sources
+                .iter()
+                .map(|c| c.connection_string.clone())
+                .collect::<String>()
+        );
+    } else {
+        // current grpc source is needed for transaction watcher even if there is quic
+        error!("No grpc geyser sources specified");
+        exit(-1);
+    };
 
     if config.metrics.output_http {
         let prom_bind_addr = config
@@ -303,7 +314,12 @@ async fn main() -> anyhow::Result<()> {
     info!("Using {} mints", mints.len(),);
 
     let token_cache = {
-        let mint_metadata = request_mint_metadata(&source_config.rpc_http_url, &mints).await;
+        let mint_metadata = request_mint_metadata(
+            &source_config.rpc_http_url,
+            &mints,
+            number_of_accounts_per_gma,
+        )
+        .await;
         let mut data: HashMap<Pubkey, token_cache::Decimals> = HashMap::new();
         for (mint_pubkey, Token { mint, decimals }) in mint_metadata {
             assert_eq!(mint_pubkey, mint);
@@ -378,11 +394,23 @@ async fn main() -> anyhow::Result<()> {
         router_version as u8,
     ));
 
+    let liquidity_provider = Arc::new(RwLock::new(LiquidityProvider::new(
+        token_cache.clone(),
+        price_cache.clone(),
+    )));
+    let liquidity_job = spawn_liquidity_updater_job(
+        liquidity_provider.clone(),
+        edges.clone(),
+        chain_data_wrapper,
+        exit_sender.subscribe(),
+    );
+
     let server_job = HttpServer::start(
         route_provider.clone(),
         hash_provider,
         alt_provider,
         live_account_provider,
+        liquidity_provider.clone(),
         ix_builder,
         config.clone(),
         exit_sender.subscribe(),
@@ -443,8 +471,8 @@ async fn main() -> anyhow::Result<()> {
     let ef = exit_sender.subscribe();
     let sc = source_config.clone();
     let account_update_job = tokio_spawn("geyser", async move {
-        if sc.use_quic.unwrap_or(false) {
-            error!("not supported yet");
+        if sc.grpc_sources.is_none() && sc.quic_sources.is_none() {
+            error!("No quic or grpc plugin setup");
         } else {
             geyser::spawn_geyser_source(
                 &sc,
@@ -495,6 +523,7 @@ async fn main() -> anyhow::Result<()> {
         tx_sender_job,
         tx_watcher_job,
         account_update_job,
+        liquidity_job,
     ]
     .into_iter()
     .chain(update_jobs.into_iter())
@@ -528,7 +557,7 @@ fn build_price_feed(
 fn build_rpc(source_config: &AccountDataSourceConfig) -> RpcClient {
     RpcClient::new_with_timeouts_and_commitment(
         string_or_env(source_config.rpc_http_url.clone()),
-        Duration::from_secs(60), // request timeout
+        Duration::from_secs(source_config.request_timeout_in_seconds.unwrap_or(60)), // request timeout
         CommitmentConfig::confirmed(),
         Duration::from_secs(60), // confirmation timeout
     )
@@ -537,7 +566,7 @@ fn build_rpc(source_config: &AccountDataSourceConfig) -> RpcClient {
 fn build_blocking_rpc(source_config: &AccountDataSourceConfig) -> BlockingRpcClient {
     BlockingRpcClient::new_with_timeouts_and_commitment(
         string_or_env(source_config.rpc_http_url.clone()),
-        Duration::from_secs(60), // request timeout
+        Duration::from_secs(source_config.request_timeout_in_seconds.unwrap_or(60)), // request timeout
         CommitmentConfig::confirmed(),
         Duration::from_secs(60), // confirmation timeout
     )

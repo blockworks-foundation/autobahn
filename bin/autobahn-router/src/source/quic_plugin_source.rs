@@ -1,69 +1,42 @@
-use futures::stream::once;
 use itertools::Itertools;
 use jsonrpc_core::futures::StreamExt;
 
+use quic_geyser_common::filters::MemcmpFilter;
+use quic_geyser_common::types::connections_parameters::ConnectionParameters;
 use solana_sdk::pubkey::Pubkey;
-
-use tokio_stream::StreamMap;
-use yellowstone_grpc_proto::tonic::{
-    metadata::MetadataValue,
-    transport::{Channel, ClientTlsConfig},
-    Request,
-};
 
 use anchor_spl::token::spl_token;
 use async_channel::{Receiver, Sender};
 use std::collections::HashSet;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Instant;
 use std::{collections::HashMap, env, time::Duration};
 use tracing::*;
 
-use yellowstone_grpc_proto::prelude::{
-    geyser_client::GeyserClient, subscribe_update, CommitmentLevel, SubscribeRequest,
-    SubscribeRequestFilterAccounts, SubscribeRequestFilterSlots,
-};
-
 use crate::metrics;
 use mango_feeds_connector::{chain_data::SlotStatus, SlotUpdate};
-use router_config_lib::{AccountDataSourceConfig, GrpcSourceConfig};
+use quic_geyser_common::message::Message;
+use router_config_lib::{AccountDataSourceConfig, QuicSourceConfig};
 use router_feed_lib::account_write::{AccountOrSnapshotUpdate, AccountWrite};
 use router_feed_lib::get_program_account::{
     get_snapshot_gma, get_snapshot_gpa, get_snapshot_gta, CustomSnapshotProgramAccounts,
     FeedMetadata,
 };
-use router_feed_lib::utils::make_tls_config;
 use solana_program::clock::Slot;
 use tokio::sync::Semaphore;
-use yellowstone_grpc_proto::geyser::subscribe_request_filter_accounts_filter::Filter;
-use yellowstone_grpc_proto::geyser::{
-    subscribe_request_filter_accounts_filter_memcmp, SubscribeRequestFilterAccountsFilter,
-    SubscribeRequestFilterAccountsFilterMemcmp, SubscribeUpdateAccountInfo, SubscribeUpdateSlot,
-};
-use yellowstone_grpc_proto::tonic::codec::CompressionEncoding;
-
-const MAX_GRPC_ACCOUNT_SUBSCRIPTIONS: usize = 100;
 
 // limit number of concurrent gMA/gPA requests
 const MAX_PARALLEL_HEAVY_RPC_REQUESTS: usize = 4;
 
-// GRPC network tuning
-// see https://github.com/hyperium/tonic/blob/v0.10.2/tonic/src/transport/channel/mod.rs
-const GPRC_CLIENT_BUFFER_SIZE: usize = 65536; // default: 1024
-                                              // see https://github.com/hyperium/hyper/blob/v0.14.28/src/proto/h2/client.rs#L45
-const GRPC_CONN_WINDOW: u32 = 5242880; // 5MB
-const GRPC_STREAM_WINDOW: u32 = 4194304; // default: 2MB
-
 #[allow(clippy::large_enum_variant)]
 pub enum SourceMessage {
-    GrpcAccountUpdate(Slot, SubscribeUpdateAccountInfo),
-    GrpcSlotUpdate(SubscribeUpdateSlot),
+    QuicMessage(Message),
     Snapshot(CustomSnapshotProgramAccounts),
 }
 
 pub async fn feed_data_geyser(
-    grpc_config: &GrpcSourceConfig,
-    tls_config: Option<ClientTlsConfig>,
+    quic_source_config: &QuicSourceConfig,
     snapshot_config: AccountDataSourceConfig,
     subscribed_accounts: &HashSet<Pubkey>,
     subscribed_programs: &HashSet<Pubkey>,
@@ -72,154 +45,61 @@ pub async fn feed_data_geyser(
 ) -> anyhow::Result<()> {
     let use_compression = snapshot_config.rpc_support_compression.unwrap_or(false);
     let number_of_accounts_per_gma = snapshot_config.number_of_accounts_per_gma.unwrap_or(100);
-    let grpc_connection_string = match &grpc_config.connection_string.chars().next().unwrap() {
-        '$' => env::var(&grpc_config.connection_string[1..])
-            .expect("reading connection string from env"),
-        _ => grpc_config.connection_string.clone(),
-    };
+
     let snapshot_rpc_http_url = match &snapshot_config.rpc_http_url.chars().next().unwrap() {
         '$' => env::var(&snapshot_config.rpc_http_url[1..])
             .expect("reading connection string from env"),
         _ => snapshot_config.rpc_http_url.clone(),
     };
-    info!("connecting to grpc source {}", grpc_connection_string);
-    let endpoint = Channel::from_shared(grpc_connection_string)?;
-    // TODO add grpc compression option
-    let channel = if let Some(tls) = tls_config {
-        endpoint.tls_config(tls)?
-    } else {
-        endpoint
-    }
-    .tcp_nodelay(true)
-    .http2_adaptive_window(true)
-    .buffer_size(GPRC_CLIENT_BUFFER_SIZE)
-    .initial_connection_window_size(GRPC_CONN_WINDOW)
-    .initial_stream_window_size(GRPC_STREAM_WINDOW)
-    .connect()
-    .await?;
-    let token: Option<MetadataValue<_>> = match &grpc_config.token {
-        Some(token) => {
-            if token.is_empty() {
-                None
-            } else {
-                match token.chars().next().unwrap() {
-                    '$' => Some(
-                        env::var(&token[1..])
-                            .expect("reading token from env")
-                            .parse()?,
-                    ),
-                    _ => Some(token.clone().parse()?),
-                }
-            }
-        }
-        None => None,
-    };
-    let mut client = GeyserClient::with_interceptor(channel, move |mut req: Request<()>| {
-        if let Some(token) = &token {
-            req.metadata_mut().insert("x-token", token.clone());
-        }
-        Ok(req)
-    })
-    .accept_compressed(CompressionEncoding::Gzip);
+    info!("connecting to quic source {:?}", quic_source_config);
 
-    let mut accounts_filter: HashSet<Pubkey> = HashSet::new();
-    let mut accounts = HashMap::new();
-    let mut slots = HashMap::new();
-    let blocks = HashMap::new();
-    let transactions = HashMap::new();
-    let blocks_meta = HashMap::new();
-
-    for program_id in subscribed_programs {
-        accounts.insert(
-            format!("client_owner_{program_id}").to_owned(),
-            SubscribeRequestFilterAccounts {
-                account: vec![],
-                owner: vec![program_id.to_string()],
-                filters: vec![],
-            },
-        );
-    }
-
-    for owner_id in subscribed_token_accounts {
-        accounts.insert(
-            format!("client_token_{owner_id}").to_owned(),
-            SubscribeRequestFilterAccounts {
-                account: vec![],
-                owner: vec!["TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA".to_string()],
-                filters: vec![
-                    SubscribeRequestFilterAccountsFilter {
-                        filter: Some(Filter::Datasize(165)),
-                    },
-                    SubscribeRequestFilterAccountsFilter {
-                        filter: Some(Filter::Memcmp(SubscribeRequestFilterAccountsFilterMemcmp {
-                            offset: 32,
-                            data: Some(
-                                subscribe_request_filter_accounts_filter_memcmp::Data::Bytes(
-                                    owner_id.to_bytes().into_iter().collect(),
-                                ),
-                            ),
-                        })),
-                    },
-                ],
-            },
-        );
-    }
-
-    if subscribed_accounts.len() > 0 {
-        accounts.insert(
-            "client_accounts".to_owned(),
-            SubscribeRequestFilterAccounts {
-                account: subscribed_accounts.iter().map(Pubkey::to_string).collect(),
-                owner: vec![],
-                filters: vec![],
-            },
-        );
-        accounts_filter.extend(subscribed_accounts);
-    }
-
-    slots.insert(
-        "client_slots".to_owned(),
-        SubscribeRequestFilterSlots {
-            filter_by_commitment: None,
+    let (quic_client, mut stream, _jh) = quic_geyser_client::non_blocking::client::Client::new(
+        quic_source_config.connection_string.clone(),
+        ConnectionParameters {
+            enable_gso: quic_source_config.enable_gso.unwrap_or(true),
+            ..Default::default()
         },
-    );
+    )
+    .await?;
 
-    // could use "merge_streams" see geyser-grpc-connector
-    let mut subscriptions = StreamMap::new();
+    let mut subscriptions = vec![];
 
-    {
-        let request = SubscribeRequest {
-            blocks,
-            blocks_meta,
-            commitment: None,
-            slots,
-            transactions,
-            accounts_data_slice: vec![],
-            ping: None,
-            ..Default::default()
-        };
-        let response = client.subscribe(once(async move { request })).await?;
-        subscriptions.insert(usize::MAX, response.into_inner());
-    }
+    let subscribed_program_filter = subscribed_programs.iter().map(|x| {
+        quic_geyser_common::filters::Filter::Account(quic_geyser_common::filters::AccountFilter {
+            owner: Some(*x),
+            accounts: None,
+            filters: None,
+        })
+    });
+    subscriptions.extend(subscribed_program_filter);
 
-    // account subscriptions may have at most 100 at a time
-    let account_chunks = accounts
-        .into_iter()
-        .chunks(MAX_GRPC_ACCOUNT_SUBSCRIPTIONS)
-        .into_iter()
-        .map(|chunk| chunk.collect::<HashMap<String, SubscribeRequestFilterAccounts>>())
-        .collect_vec();
-    for (i, accounts) in account_chunks.into_iter().enumerate() {
-        let request = SubscribeRequest {
-            accounts,
-            commitment: Some(CommitmentLevel::Processed as i32),
-            accounts_data_slice: vec![],
-            ping: None,
-            ..Default::default()
-        };
-        let response = client.subscribe(once(async move { request })).await?;
-        subscriptions.insert(i, response.into_inner());
-    }
+    let subscribed_token_accounts_filter = subscribed_programs.iter().map(|x| {
+        quic_geyser_common::filters::Filter::Account(quic_geyser_common::filters::AccountFilter {
+            owner: Some(Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").unwrap()),
+            accounts: None,
+            filters: Some(vec![
+                quic_geyser_common::filters::AccountFilterType::Datasize(165),
+                quic_geyser_common::filters::AccountFilterType::Memcmp(MemcmpFilter {
+                    offset: 32,
+                    data: quic_geyser_common::filters::MemcmpFilterData::Bytes(
+                        x.to_bytes().to_vec(),
+                    ),
+                }),
+            ]),
+        })
+    });
+    subscriptions.extend(subscribed_token_accounts_filter);
+
+    subscriptions.push(quic_geyser_common::filters::Filter::Account(
+        quic_geyser_common::filters::AccountFilter {
+            accounts: Some(subscribed_accounts.clone()),
+            owner: None,
+            filters: None,
+        },
+    ));
+
+    subscriptions.push(quic_geyser_common::filters::Filter::Slot);
+    quic_client.subscribe(subscriptions).await?;
 
     // We can't get a snapshot immediately since the finalized snapshot would be for a
     // slot in the past and we'd be missing intermediate updates.
@@ -237,7 +117,7 @@ pub async fn feed_data_geyser(
     let mut snapshot_needed = true;
 
     // The highest "rooted" slot that has been seen.
-    let mut max_rooted_slot = 0;
+    let mut max_finalized_slot = 0;
 
     // Data for slots will arrive out of order. This value defines how many
     // slots after a slot was marked "rooted" we assume it'll not receive
@@ -268,64 +148,41 @@ pub async fn feed_data_geyser(
     // Highest slot that an account write came in for.
     let mut newest_write_slot: u64 = 0;
 
-    #[derive(Clone, Debug)]
-    struct WriteVersion {
-        // Write version seen on-chain
-        global: u64,
-        // FIXME clarify,rename
-        // The per-pubkey per-slot write version
-        per_slot_write_version: u32,
-    }
-
-    // map slot -> (pubkey -> WriteVersion)
-    //
-    // Since the write_version is a private indentifier per node it can't be used
-    // to deduplicate events from multiple nodes. Here we rewrite it such that each
-    // pubkey and each slot has a consecutive numbering of writes starting at 1.
-    //
-    // That number will be consistent for each node.
-    let mut slot_pubkey_writes = HashMap::<u64, HashMap<[u8; 32], WriteVersion>>::new();
-
     let mut last_message_received_at = Instant::now();
 
     loop {
         tokio::select! {
-            update = subscriptions.next() => {
-                let Some(data) = update
+            update = stream.recv() => {
+                let Some(mut message) = update
                 else {
                     anyhow::bail!("geyser plugin has closed the stream");
                 };
-                use subscribe_update::UpdateOneof;
-                let update = data.1?;
                 // use account and slot updates to trigger snapshot loading
-                match &update.update_oneof {
-                    Some(UpdateOneof::Slot(slot_update)) => {
+                match &mut message {
+                    Message::SlotMsg(slot_update) => {
                         trace!("received slot update for slot {}", slot_update.slot);
-                        let status = slot_update.status;
+                        let commitment_config = slot_update.commitment_config;
 
                         debug!(
-                            "slot_update: {} ({})",
+                            "slot_update: {} ({:?})",
                             slot_update.slot,
-                            slot_update.status
+                            commitment_config
                         );
 
-                        if status == CommitmentLevel::Finalized as i32 {
+                        if commitment_config.is_finalized() {
                             if first_full_slot == u64::MAX {
                                 // TODO: is this equivalent to before? what was highesy_write_slot?
                                 first_full_slot = slot_update.slot + 1;
                             }
                             // TODO rename rooted to finalized
-                            if slot_update.slot > max_rooted_slot {
-                                max_rooted_slot = slot_update.slot;
-
-                                // drop data for slots that are well beyond rooted
-                                slot_pubkey_writes.retain(|&k, _| k >= max_rooted_slot - max_out_of_order_slots);
+                            if slot_update.slot > max_finalized_slot {
+                                max_finalized_slot = slot_update.slot;
                             }
 
-                            let waiting_for_snapshot_slot = max_rooted_slot <= first_full_slot + rooted_to_finalized_slots;
+                            let waiting_for_snapshot_slot = max_finalized_slot <= first_full_slot + rooted_to_finalized_slots;
 
                             if waiting_for_snapshot_slot {
-                                debug!("waiting for snapshot slot: rooted={}, first_full={}, slot={}", max_rooted_slot, first_full_slot, slot_update.slot);
+                                debug!("waiting for snapshot slot: rooted={}, first_full={}, slot={}", max_finalized_slot, first_full_slot, slot_update.slot);
                             }
 
                             if snapshot_needed && !waiting_for_snapshot_slot {
@@ -335,10 +192,10 @@ pub async fn feed_data_geyser(
 
                                 let permits_parallel_rpc_requests = Arc::new(Semaphore::new(MAX_PARALLEL_HEAVY_RPC_REQUESTS));
 
-                                info!("Requesting snapshot from gMA for {} filter accounts", accounts_filter.len());
-                                for pubkey_chunk in accounts_filter.iter().chunks(number_of_accounts_per_gma).into_iter() {
+                                info!("Requesting snapshot from gMA for {} filter accounts", subscribed_accounts.len());
+                                for pubkey_chunk in subscribed_accounts.iter().chunks(number_of_accounts_per_gma).into_iter() {
                                     let rpc_http_url = snapshot_rpc_http_url.clone();
-                                    let account_ids = pubkey_chunk.cloned().collect_vec();
+                                    let account_ids = pubkey_chunk.map(|x| *x).collect_vec();
                                     let sender = snapshot_gma_sender.clone();
                                     let permits = permits_parallel_rpc_requests.clone();
                                     tokio::spawn(async move {
@@ -347,7 +204,7 @@ pub async fn feed_data_geyser(
                                         match sender.send(snapshot) {
                                             Ok(_) => {}
                                             Err(_) => {
-                                                warn!("Could not send snapshot, grpc has probably reconnected");
+                                                warn!("Could not send snapshot, quic has probably reconnected");
                                             }
                                         }
                                     });
@@ -365,7 +222,7 @@ pub async fn feed_data_geyser(
                                         match sender.send(snapshot) {
                                             Ok(_) => {}
                                             Err(_) => {
-                                                warn!("Could not send snapshot, grpc has probably reconnected");
+                                                warn!("Could not send snapshot, quic has probably reconnected");
                                             }
                                         }
                                     });
@@ -383,7 +240,7 @@ pub async fn feed_data_geyser(
                                         match sender.send(snapshot) {
                                             Ok(_) => {}
                                             Err(_) => {
-                                                warn!("Could not send snapshot, grpc has probably reconnected");
+                                                warn!("Could not send snapshot, quic has probably reconnected");
                                             }
                                         }
                                     });
@@ -391,8 +248,8 @@ pub async fn feed_data_geyser(
                             }
                         }
                     },
-                    Some(UpdateOneof::Account(info)) => {
-                        let slot = info.slot;
+                    Message::AccountMsg(info) => {
+                        let slot = info.slot_identifier.slot;
                         trace!("received account update for slot {}", slot);
                         if slot < first_full_slot {
                             // Don't try to process data for slots where we may have missed writes:
@@ -406,56 +263,21 @@ pub async fn feed_data_geyser(
                                 "newest_write_slot: {}",
                                 newest_write_slot
                             );
-                        } else if max_rooted_slot > 0 && info.slot < max_rooted_slot - max_out_of_order_slots {
-                            anyhow::bail!("received write {} slots back from max rooted slot {}", max_rooted_slot - slot, max_rooted_slot);
+                        } else if max_finalized_slot > 0 && info.slot_identifier.slot < max_finalized_slot - max_out_of_order_slots {
+                            anyhow::bail!("received write {} slots back from max rooted slot {}", max_finalized_slot - slot, max_finalized_slot);
                         }
-
-                        let pubkey_writes = slot_pubkey_writes.entry(slot).or_default();
-                        let mut info = info.account.clone().unwrap();
-
-                        let pubkey_bytes = Pubkey::try_from(info.pubkey).unwrap().to_bytes();
-                        let write_version_mapping = pubkey_writes.entry(pubkey_bytes).or_insert(WriteVersion {
-                            global: info.write_version,
-                            per_slot_write_version: 1, // write version 0 is reserved for snapshots
-                        });
-
-                        // We assume we will receive write versions for each pubkey in sequence.
-                        // If this is not the case, logic here does not work correctly because
-                        // a later write could arrive first.
-                        if info.write_version < write_version_mapping.global {
-                            anyhow::bail!("unexpected write version: got {}, expected >= {}", info.write_version, write_version_mapping.global);
-                        }
-
-                        // Rewrite the update to use the local write version and bump it
-                        info.write_version = write_version_mapping.per_slot_write_version as u64;
-                        write_version_mapping.per_slot_write_version += 1;
                     },
-                    Some(UpdateOneof::Ping(_)) => {
-                        trace!("received grpc ping");
-                    },
-                    Some(_) => {
-                        // ignore all other grpc update types
-                    },
-                    None => {
-                        unreachable!();
+                    _ => {
+                        // ignore all other quic update types
                     }
                 }
 
                 let elapsed = last_message_received_at.elapsed().as_millis();
-                metrics::GRPC_NO_MESSAGE_FOR_DURATION_MS.set(elapsed as i64);
+                metrics::QUIC_NO_MESSAGE_FOR_DURATION_MS.set(elapsed as i64);
                 last_message_received_at = Instant::now();
 
                 // send the incremental updates to the channel
-                match update.update_oneof {
-                    Some(UpdateOneof::Account(account_update)) => {
-                        let info = account_update.account.unwrap();
-                        sender.send(SourceMessage::GrpcAccountUpdate(account_update.slot as Slot, info)).await.expect("send success");
-                    }
-                    Some(UpdateOneof::Slot(slot_update)) => {
-                        sender.send(SourceMessage::GrpcSlotUpdate(slot_update)).await.expect("send success");
-                    }
-                    _ => {}
-                }
+                sender.send(SourceMessage::QuicMessage(message)).await.expect("send success");
             },
             snapshot_message = snapshot_gma_receiver.recv() => {
                 let Some(snapshot_result) = snapshot_message
@@ -515,26 +337,17 @@ pub async fn process_events(
         async_channel::bounded::<SourceMessage>(config.dedup_queue_size);
     let mut source_jobs = vec![];
 
-    let Some(grpc_sources) = config.grpc_sources.clone() else {
+    let Some(quic_sources) = config.quic_sources.clone() else {
         return;
     };
 
     // note: caller in main.rs ensures this
-    assert_eq!(grpc_sources.len(), 1, "only one grpc source supported");
-    for grpc_source in grpc_sources.clone() {
+    assert_eq!(quic_sources.len(), 1, "only one quic source supported");
+    for quic_source in quic_sources.clone() {
         let msg_sender = msg_sender.clone();
         let sub_accounts = subscription_accounts.clone();
         let sub_programs = subscription_programs.clone();
         let sub_token_accounts = subscription_token_accounts.clone();
-
-        // Make TLS config if configured
-        let tls_config = grpc_source.tls.as_ref().map(make_tls_config).or_else(|| {
-            if grpc_source.connection_string.starts_with("https") {
-                Some(ClientTlsConfig::new())
-            } else {
-                None
-            }
-        });
 
         let cfg = config.clone();
 
@@ -545,8 +358,7 @@ pub async fn process_events(
             // Continuously reconnect on failure
             loop {
                 let out = feed_data_geyser(
-                    &grpc_source,
-                    tls_config.clone(),
+                    &quic_source,
                     cfg.clone(),
                     &sub_accounts,
                     &sub_programs,
@@ -579,12 +391,12 @@ pub async fn process_events(
                     }
                 }
 
-                metrics::GRPC_SOURCE_CONNECTION_RETRIES
-                    .with_label_values(&[&grpc_source.name])
+                metrics::QUIC_SOURCE_CONNECTION_RETRIES
+                    .with_label_values(&[&quic_source.name])
                     .inc();
 
                 tokio::time::sleep(std::time::Duration::from_secs(
-                    grpc_source.retry_connection_sleep_secs,
+                    quic_source.retry_connection_sleep_secs,
                 ))
                 .await;
             }
@@ -606,11 +418,11 @@ pub async fn process_events(
     loop {
         tokio::select! {
             _ = source_jobs.next() => {
-                warn!("shutting down grpc_plugin_source because subtask failed...");
+                warn!("shutting down quic_plugin_source because subtask failed...");
                 break;
             },
             _ = exit.recv() => {
-                warn!("shutting down grpc_plugin_source...");
+                warn!("shutting down quic_plugin_source...");
                 break;
             }
             msg = msg_receiver.recv() => {
@@ -627,7 +439,7 @@ pub async fn process_events(
                             ).await ;
                     }
                     Err(e) => {
-                        warn!("failed to process grpc event: {:?}", e);
+                        warn!("failed to process quic event: {:?}", e);
                         break;
                     }
                 };
@@ -668,68 +480,73 @@ async fn process_account_updated_from_sources(
         }
     };
 
-    metrics::GRPC_DEDUP_QUEUE.set(msg_receiver.len() as i64);
+    metrics::QUIC_DEDUP_QUEUE.set(msg_receiver.len() as i64);
     match msg {
-        SourceMessage::GrpcAccountUpdate(slot, update) => {
-            assert!(update.pubkey.len() == 32);
-            assert!(update.owner.len() == 32);
+        SourceMessage::QuicMessage(message) => {
+            match message {
+                Message::AccountMsg(account_message) => {
+                    metrics::QUIC_ACCOUNT_WRITES.inc();
+                    metrics::QUIC_ACCOUNT_WRITE_QUEUE.set(account_write_queue_sender.len() as i64);
+                    let solana_account = account_message.solana_account();
 
-            metrics::GRPC_ACCOUNT_WRITES.inc();
-            metrics::GRPC_ACCOUNT_WRITE_QUEUE.set(account_write_queue_sender.len() as i64);
+                    // Skip writes that a different server has already sent
+                    let pubkey_writes = latest_write
+                        .entry(account_message.slot_identifier.slot)
+                        .or_default();
+                    if !filters.contains(&account_message.pubkey) {
+                        return;
+                    }
 
-            // Skip writes that a different server has already sent
-            let pubkey_writes = latest_write.entry(slot).or_default();
-            let pubkey = Pubkey::try_from(update.pubkey.clone()).unwrap();
-            if !filters.contains(&pubkey) {
-                return;
+                    let writes = pubkey_writes.entry(account_message.pubkey).or_insert(0);
+                    if account_message.write_version <= *writes {
+                        return;
+                    }
+                    *writes = account_message.write_version;
+                    latest_write.retain(|&k, _| {
+                        k >= account_message.slot_identifier.slot - latest_write_retention
+                    });
+
+                    account_write_queue_sender
+                        .send(AccountOrSnapshotUpdate::AccountUpdate(AccountWrite {
+                            pubkey: account_message.pubkey,
+                            slot: account_message.slot_identifier.slot,
+                            write_version: account_message.write_version,
+                            lamports: account_message.lamports,
+                            owner: account_message.owner,
+                            executable: account_message.executable,
+                            rent_epoch: account_message.rent_epoch,
+                            data: solana_account.data,
+                        }))
+                        .await
+                        .expect("send success");
+                }
+                Message::SlotMsg(slot_message) => {
+                    metrics::QUIC_SLOT_UPDATES.inc();
+                    metrics::QUIC_SLOT_UPDATE_QUEUE.set(slot_queue_sender.len() as i64);
+
+                    let status = if slot_message.commitment_config.is_processed() {
+                        SlotStatus::Processed
+                    } else if slot_message.commitment_config.is_confirmed() {
+                        SlotStatus::Confirmed
+                    } else {
+                        SlotStatus::Rooted
+                    };
+
+                    let slot_update = SlotUpdate {
+                        slot: slot_message.slot,
+                        parent: Some(slot_message.parent),
+                        status,
+                    };
+
+                    slot_queue_sender
+                        .send(slot_update)
+                        .await
+                        .expect("send success");
+                }
+                _ => {
+                    // ignore update
+                }
             }
-
-            let writes = pubkey_writes.entry(pubkey).or_insert(0);
-            if update.write_version <= *writes {
-                return;
-            }
-            *writes = update.write_version;
-            latest_write.retain(|&k, _| k >= slot - latest_write_retention);
-
-            let owner = Pubkey::try_from(update.owner.clone()).unwrap();
-
-            account_write_queue_sender
-                .send(AccountOrSnapshotUpdate::AccountUpdate(AccountWrite {
-                    pubkey,
-                    slot,
-                    write_version: update.write_version,
-                    lamports: update.lamports,
-                    owner,
-                    executable: update.executable,
-                    rent_epoch: update.rent_epoch,
-                    data: update.data,
-                }))
-                .await
-                .expect("send success");
-        }
-        SourceMessage::GrpcSlotUpdate(update) => {
-            metrics::GRPC_SLOT_UPDATES.inc();
-            metrics::GRPC_SLOT_UPDATE_QUEUE.set(slot_queue_sender.len() as i64);
-
-            let status = CommitmentLevel::try_from(update.status).map(|v| match v {
-                CommitmentLevel::Processed => SlotStatus::Processed,
-                CommitmentLevel::Confirmed => SlotStatus::Confirmed,
-                CommitmentLevel::Finalized => SlotStatus::Rooted,
-            });
-            if status.is_err() {
-                error!("unexpected slot status: {}", update.status);
-                return;
-            }
-            let slot_update = SlotUpdate {
-                slot: update.slot,
-                parent: update.parent,
-                status: status.expect("qed"),
-            };
-
-            slot_queue_sender
-                .send(slot_update)
-                .await
-                .expect("send success");
         }
         SourceMessage::Snapshot(update) => {
             let label = if let Some(prg) = update.program_id {
@@ -759,8 +576,8 @@ async fn process_account_updated_from_sources(
 
             let mut updated_accounts = vec![];
             for account in update.accounts {
-                metrics::GRPC_SNAPSHOT_ACCOUNT_WRITES.inc();
-                metrics::GRPC_ACCOUNT_WRITE_QUEUE.set(account_write_queue_sender.len() as i64);
+                metrics::QUIC_SNAPSHOT_ACCOUNT_WRITES.inc();
+                metrics::QUIC_ACCOUNT_WRITE_QUEUE.set(account_write_queue_sender.len() as i64);
 
                 if !filters.contains(&account.pubkey) {
                     continue;
