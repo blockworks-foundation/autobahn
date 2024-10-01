@@ -26,8 +26,6 @@ use router_feed_lib::get_program_account::{
 use solana_program::clock::Slot;
 use tokio::sync::Semaphore;
 
-const MAX_GMA_ACCOUNTS: usize = 100;
-
 // limit number of concurrent gMA/gPA requests
 const MAX_PARALLEL_HEAVY_RPC_REQUESTS: usize = 4;
 
@@ -46,6 +44,7 @@ pub async fn feed_data_geyser(
     sender: async_channel::Sender<SourceMessage>,
 ) -> anyhow::Result<()> {
     let use_compression = snapshot_config.rpc_support_compression.unwrap_or(false);
+    let number_of_accounts_per_gma = snapshot_config.number_of_accounts_per_gma.unwrap_or(100);
 
     let snapshot_rpc_http_url = match &snapshot_config.rpc_http_url.chars().next().unwrap() {
         '$' => env::var(&snapshot_config.rpc_http_url[1..])
@@ -194,7 +193,7 @@ pub async fn feed_data_geyser(
                                 let permits_parallel_rpc_requests = Arc::new(Semaphore::new(MAX_PARALLEL_HEAVY_RPC_REQUESTS));
 
                                 info!("Requesting snapshot from gMA for {} filter accounts", subscribed_accounts.len());
-                                for pubkey_chunk in subscribed_accounts.iter().chunks(MAX_GMA_ACCOUNTS).into_iter() {
+                                for pubkey_chunk in subscribed_accounts.iter().chunks(number_of_accounts_per_gma).into_iter() {
                                     let rpc_http_url = snapshot_rpc_http_url.clone();
                                     let account_ids = pubkey_chunk.map(|x| *x).collect_vec();
                                     let sender = snapshot_gma_sender.clone();
