@@ -14,12 +14,20 @@ use solana_program::program_pack::Pack;
 use solana_program::{account_info::AccountInfo, pubkey::Pubkey};
 
 #[cfg(not(feature = "no-entrypoint"))]
-use solana_program::entrypoint;
+security_txt! {
+    name: "Autobahn Executor",
+    project_url: "https://autobahn.ag",
+    contacts: "email:security@mango.markets",
+    policy: "https://github.com/blockworks-foundation/autobahn/blob/master/SECURITY.md",
+}
 
-declare_id!("AutobNFLMzX1rFCDgwWpwr3ztG5c1oDbSrGq7Jj2LgE");
+#[cfg(not(feature = "no-entrypoint"))]
+use solana_program::entrypoint;
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
+
+declare_id!("AutobNFLMzX1rFCDgwWpwr3ztG5c1oDbSrGq7Jj2LgE");
 
 #[repr(u8)]
 pub enum Instructions {
