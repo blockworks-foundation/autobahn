@@ -17,6 +17,7 @@ pub struct EdgeState {
     // TODO: it may be much better to store this centrally, so it's cheap to take a snapshot
     pub cached_prices: Vec<(u64, f64, f64)>,
     is_valid: bool,
+    is_dirty: bool,
     pub last_update: u64,
     pub last_update_slot: u64,
 
@@ -153,7 +154,7 @@ impl Edge {
             })
             .collect_vec();
 
-        debug!(input_mint = %self.input_mint, pool = %self.key(), multiplier = multiplier, price = price, amounts = amounts.iter().join(";"), "price_data");
+        trace!(input_mint = %self.input_mint, pool = %self.key(), multiplier = multiplier, price = price, amounts = amounts.iter().join(";"), "price_data");
 
         let overflow = amounts.iter().any(|x| *x == u64::MAX);
         if overflow {
@@ -166,6 +167,7 @@ impl Edge {
             state.last_update_slot = chain_data.newest_processed_slot();
             state.cached_prices.clear();
             state.is_valid = false;
+            state.is_dirty = false;
             return;
         }
 
@@ -196,6 +198,7 @@ impl Edge {
         state.last_update_slot = chain_data.newest_processed_slot();
         state.cached_prices.clear();
         state.is_valid = true;
+        state.is_dirty = false;
 
         if let Some(timestamp) = state.cooldown_until {
             if timestamp < state.last_update {
@@ -229,6 +232,26 @@ impl Edge {
         }
     }
 
+    pub fn mark_as_dirty(&self) {
+        let mut state = self.state.write().unwrap();
+        state.is_dirty = true;
+    }
+
+    pub fn update_if_needed(
+        &self,
+        chain_data: &AccountProviderView,
+        token_cache: &TokenCache,
+        price_cache: &PriceCache,
+        path_warming_amounts: &Vec<u64>,
+    ) {
+        if !self.state.read().unwrap().is_dirty {
+            return;
+        }
+
+        debug!("Lazily updating {}->{}", debug_tools::name(&self.input_mint), debug_tools::name(&self.output_mint));
+        self.update(chain_data, token_cache, price_cache, path_warming_amounts)
+    }
+
     pub fn update(
         &self,
         chain_data: &AccountProviderView,
@@ -259,7 +282,7 @@ impl EdgeState {
     /// Returns the price (in native/native) and ln(price) most applicable for the in amount
     /// Returns None if invalid
     pub fn cached_price_for(&self, in_amount: u64) -> Option<(f64, f64)> {
-        if !self.is_valid() || self.cached_prices.is_empty() {
+        if !self.is_valid() || self.cached_prices.is_empty() || self.is_dirty {
             return None;
         }
 
@@ -272,7 +295,7 @@ impl EdgeState {
     }
 
     pub fn cached_price_exact_out_for(&self, out_amount: u64) -> Option<(f64, f64)> {
-        if !self.is_valid_out() {
+        if !self.is_valid_out() || self.cached_prices.is_empty() || self.is_dirty {
             return None;
         }
 

@@ -91,6 +91,12 @@ impl RouteProvider for RoutingRouteProvider {
             hot_mints_guard.get()
         };
 
+        // ensure new hot mints are ready (edge cached_price should be available)
+        self.routing
+            .lazy_compute_prices(&self.chain_data, &self.tokens, &self.prices, &from_mint);
+        self.routing
+            .lazy_compute_prices(&self.chain_data, &self.tokens, &self.prices, &to_mint);
+
         let route = self.routing.find_best_route(
             &self.chain_data,
             &from_mint,
