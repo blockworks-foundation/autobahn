@@ -1,6 +1,6 @@
 [toolchain]
 anchor_version = "0.28.0"
-solana_version = "1.18.22"
+solana_version = "1.16.14"
 
 [workspace]
 members = [
