@@ -1,0 +1,53 @@
+name: Verifiable Build
+on:
+  push:
+    tags:
+      - 'program-v*'
+  workflow_dispatch:
+
+env:
+  EXECUTOR_NAME: autobahn_executor
+
+jobs:
+  build:
+    name: Build Verifiable Artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup solana-verify
+        run: |
+          cargo install solana-verify
+
+      - name: Verifiable build autobahn-executor
+        run: |
+          solana-verify build --library-name ${{ env.EXECUTOR_NAME }}
+
+      - name: Get hash autobahn-executor
+        run: |
+          solana-verify get-executable-hash target/deploy/${{ env.EXECUTOR_NAME }}.so
+
+      - name: Generate checksum autobahn-executor
+        run: |
+          echo "EXECUTOR_CHECKSUM=$(sha256sum ./target/deploy/${{ env.EXECUTOR_NAME }}.so | head -c 64)" >> $GITHUB_ENV
+
+      - name: Generate SBOM autobahn executor
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          format: 'cyclonedx'
+          output: '${{ env.EXECUTOR_NAME }}-${{ github.ref_name }}-sbom.json'
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: |
+            autobahn-executor sha256 checksum: ${{ env.EXECUTOR_CHECKSUM }}
+            github commit: ${{ github.sha }}
+          files: |
+            ./target/deploy/${{ env.EXECUTOR_NAME }}.so
+            ./${{ env.EXECUTOR_NAME }}-${{ github.ref_name }}-sbom.json
