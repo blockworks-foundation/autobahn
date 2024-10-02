@@ -685,6 +685,7 @@ version = "0.1.0"
 dependencies = [
  "bonfida-test-utils",
  "bytemuck",
+ "default-env",
  "solana-program",
  "solana-program-test",
  "solana-sdk",

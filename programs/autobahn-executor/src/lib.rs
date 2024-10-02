@@ -13,16 +13,20 @@ use solana_program::program_error::ProgramError;
 use solana_program::program_pack::Pack;
 use solana_program::{account_info::AccountInfo, pubkey::Pubkey};
 
+
+#[cfg(not(feature = "no-entrypoint"))]
+use {default_env::default_env, solana_program::entrypoint, solana_security_txt::security_txt};
+
 #[cfg(not(feature = "no-entrypoint"))]
 security_txt! {
     name: "Autobahn Executor",
     project_url: "https://autobahn.ag",
     contacts: "email:security@mango.markets",
     policy: "https://github.com/blockworks-foundation/autobahn/blob/master/SECURITY.md",
+    source_code: "https://github.com/blockworks-foundation/autobahn",
+    source_revision: default_env!("GITHUB_SHA", ""),
+    source_release: default_env!("GITHUB_REF_NAME", ""),
 }
-
-#[cfg(not(feature = "no-entrypoint"))]
-use solana_program::entrypoint;
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
