@@ -84,10 +84,10 @@ pub struct ReferrerWithdrawLog {
     pub amount: u64,
 }
 
-pub const PLATFORM_FEE_LOG_DISCRIMINANT: [u8; 8] = [119, 229, 218, 14, 28, 173, 136, 115];
-pub const REFERRER_FEE_LOG_DISCRIMINANT: [u8; 8] = [39, 182, 211, 59, 132, 55, 92, 254];
-pub const REFERRER_WITHDRAW_LOG_DISCRIMINANT: [u8; 8] = [104, 148, 159, 252, 157, 185, 225, 186];
-pub const SWAP_EVENT_DISCRIMINANT: [u8; 8] = [240, 219, 172, 202, 36, 10, 7, 123];
+pub const PLATFORM_FEE_LOG_DISCRIMINANT: [u8; 8] = [160, 183, 104, 34, 255, 190, 119, 188];
+pub const REFERRER_FEE_LOG_DISCRIMINANT: [u8; 8] = [198, 149, 221, 27, 28, 103, 76, 95];
+pub const REFERRER_WITHDRAW_LOG_DISCRIMINANT: [u8; 8] = [25, 7, 239, 41, 67, 36, 141, 92];
+pub const SWAP_EVENT_DISCRIMINANT: [u8; 8] = [56, 178, 48, 245, 42, 152, 27, 75];
 
 discriminant!(
     PlatformFeeLog,

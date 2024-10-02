@@ -96,8 +96,7 @@ impl<T: SwapStepInstructionBuilder> SwapInstructionsBuilder for SwapInstructions
         let mut setup_instructions = vec![];
         let mut cleanup_instructions = vec![];
 
-        let exec_program_id: Pubkey =
-            Pubkey::from_str("EXECM4wjzdCnrtQjHx5hy1r5k31tdvWBPYbqsjSoPfAh").unwrap();
+        let exec_program_id: Pubkey = autobahn_executor::id();
         let sol_mint: Pubkey =
             Pubkey::from_str("So11111111111111111111111111111111111111112").unwrap();
 

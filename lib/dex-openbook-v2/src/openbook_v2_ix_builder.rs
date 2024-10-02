@@ -95,7 +95,7 @@ pub fn build_swap_ix(
     );
 
     let instruction = Instruction {
-        program_id: Pubkey::from_str("EXECM4wjzdCnrtQjHx5hy1r5k31tdvWBPYbqsjSoPfAh").unwrap(),
+        program_id: router_lib::autobahn_executor::id(),
         accounts: account_metas,
         data,
     };
