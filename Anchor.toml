@@ -1,0 +1,15 @@
+[toolchain]
+anchor_version = "0.29.0"
+solana_version = "2.0.3"
+
+[workspace]
+members = [
+  "programs/autobahn-executor"
+]
+
+[provider]
+cluster = "mainnet"
+wallet = "~/.config/solana/id.json"
+
+[programs.mainnet]
+autobahn_executor = "AutobNFLMzX1rFCDgwWpwr3ztG5c1oDbSrGq7Jj2LgE"
