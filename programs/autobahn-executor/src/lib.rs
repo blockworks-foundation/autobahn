@@ -25,7 +25,7 @@ security_txt! {
     policy: "https://github.com/blockworks-foundation/autobahn/blob/master/SECURITY.md",
     source_code: "https://github.com/blockworks-foundation/autobahn",
     source_revision: default_env!("GITHUB_SHA", ""),
-    source_release: default_env!("GITHUB_REF_NAME", ""),
+    source_release: default_env!("GITHUB_REF_NAME", "")
 }
 
 #[cfg(not(feature = "no-entrypoint"))]

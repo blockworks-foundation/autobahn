@@ -1,15 +1,20 @@
 [toolchain]
 anchor_version = "0.28.0"
-solana_version = "1.16.14"
+solana_version = "1.17.34"
 
-[workspace]
-members = [
-  "programs/autobahn-executor"
-]
-
-[provider]
-cluster = "mainnet"
-wallet = "~/.config/solana/id.json"
+[features]
+resolution = true
+skip-lint = false
 
 [programs.mainnet]
 autobahn_executor = "AutobNFLMzX1rFCDgwWpwr3ztG5c1oDbSrGq7Jj2LgE"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Mainnet"
+wallet = "~/.config/solana/id.json"
+
+[workspace]
+members = ["programs/autobahn-executor"]
