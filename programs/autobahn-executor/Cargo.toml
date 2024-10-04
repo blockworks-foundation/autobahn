@@ -1,6 +1,6 @@
 [package]
 name = "autobahn-executor"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 
 [features]
@@ -11,6 +11,8 @@ test-bpf = ["no-entrypoint"]
 solana-program = "1.17"
 spl-token = { version = "3.5.0", features = ["no-entrypoint"] }
 bytemuck = "1.16.1"
+solana-security-txt = "1.1.1"
+default-env = "0.1.1"
 
 [lib]
 name = "autobahn_executor"
