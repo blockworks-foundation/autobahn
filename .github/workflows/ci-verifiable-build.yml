@@ -1,0 +1,50 @@
+name: Verifiable Build
+on:
+  push:
+    tags:
+      - 'executor-v*'
+
+env:
+  APP_NAME: autobahn_executor
+
+jobs:
+  build:
+    name: Build Verifiable Artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - name: Setup Anchor
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor --rev 4e5280be46d859ba1c57fabe4c3916bec742fd69 anchor-cli --locked --force
+
+      - name: Verifiable Build
+        run: |
+          anchor build --verifiable --docker-image backpackapp/build:v0.28.0 --solana-version 1.17.34 --env GITHUB_SHA --env GITHUB_REF_NAME
+
+      - name: Generate Checksum
+        run: |
+          echo "CHECKSUM=$(sha256sum ./target/verifiable/${{ env.APP_NAME }}.so | head -c 64)" >> $GITHUB_ENV
+
+      - name: Generate SBOM
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          format: 'cyclonedx'
+          output: '${{ env.APP_NAME }}-${{ github.ref_name }}-sbom.json'
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: |
+            sha256 checksum: ${{ env.CHECKSUM }}
+            github commit: ${{ github.sha }}
+          files: |
+            ./target/verifiable/${{ env.APP_NAME }}.so
+            ./${{ env.APP_NAME }}-${{ github.ref_name }}-sbom.json
