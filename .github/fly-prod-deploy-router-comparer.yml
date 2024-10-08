@@ -1,0 +1,22 @@
+name: Deploy Prod Comparer to Fly
+
+on:
+  push:
+    tags:
+      - 'production/comparer-*'
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Fly
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy
+        run: flyctl deploy -c fly-comparer.toml -a router-comparer
