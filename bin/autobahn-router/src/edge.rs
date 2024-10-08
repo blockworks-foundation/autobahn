@@ -16,8 +16,13 @@ pub struct EdgeState {
     /// List of (input, price, ln-price) pairs, sorted by input asc
     // TODO: it may be much better to store this centrally, so it's cheap to take a snapshot
     pub cached_prices: Vec<(u64, f64, f64)>,
+
+    /// Will be invalid if we fail to compute a quote
     is_valid: bool,
+
+    /// Will be dirty if we got some account update for this edge, but didn't recompute the price cache yet
     is_dirty: bool,
+
     pub last_update: u64,
     pub last_update_slot: u64,
 
