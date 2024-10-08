@@ -1,21 +1,22 @@
-name: Deploy to Fly
+name: Deploy Prod Router to Fly
 
 on:
   push:
-      branches: [main]
+    tags:
+      - 'production/router-*'
 
 env:
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-      - name: Checkout 
+      - name: Checkout
         uses: actions/checkout@v2
 
       - name: Setup Fly
         uses: superfly/flyctl-actions/setup-flyctl@master
-      
+
       - name: Deploy
-        run: flyctl deploy -c fly.toml -a autobahn-router-1
+        run: flyctl deploy -c fly.toml -a router-2
