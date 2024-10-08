@@ -1896,10 +1896,11 @@ impl Routing {
         chain_data: &AccountProviderView,
         token_cache: &TokenCache,
         price_cache: &PriceCache,
-        mint: &Pubkey,
+        input_mint: &Pubkey,
+        output_mint: &Pubkey,
     ) {
         for edge in &self.edges {
-            if edge.input_mint.eq(mint) {
+            if edge.input_mint.eq(input_mint) || edge.output_mint.eq(output_mint) {
                 edge.update_if_needed(
                     chain_data,
                     token_cache,
