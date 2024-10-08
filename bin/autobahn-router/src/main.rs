@@ -1,5 +1,5 @@
 use crate::edge_updater::{spawn_updater_job, Dex};
-use crate::hot_mints::HotMintsCache;
+use crate::hot_mints::{HotMintUpdate, HotMintsCache};
 use crate::ix_builder::{SwapInstructionsBuilderImpl, SwapStepInstructionBuilderImpl};
 use crate::liquidity::{spawn_liquidity_updater_job, LiquidityProvider};
 use crate::path_warmer::spawn_path_warmer_job;
@@ -99,7 +99,11 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::load(&args[1])?;
     let router_version = RouterVersion::OverestimateAmount;
 
-    let hot_mints = Arc::new(RwLock::new(HotMintsCache::new(&config.hot_mints)));
+    let (hot_mint_sender, hot_mint_receiver) = broadcast::channel::<HotMintUpdate>(20);
+    let hot_mints = Arc::new(RwLock::new(HotMintsCache::new_with_watcher(
+        &config.hot_mints,
+        hot_mint_sender.clone(),
+    )));
 
     let mango_data = match mango::mango_fetcher::fetch_mango_data().await {
         Err(e) => {
@@ -348,6 +352,8 @@ async fn main() -> anyhow::Result<()> {
                 token_cache.clone(),
                 price_cache.clone(),
                 path_warming_amounts.clone(),
+                hot_mints.clone(),
+                hot_mint_sender.subscribe(),
                 price_feed.register_mint_sender(),
                 ready_channels[i].0.clone(),
                 rpc_slot_sender.subscribe(),
