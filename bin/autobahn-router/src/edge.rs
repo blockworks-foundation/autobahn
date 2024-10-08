@@ -253,7 +253,11 @@ impl Edge {
             return;
         }
 
-        debug!("Lazily updating {}->{}", debug_tools::name(&self.input_mint), debug_tools::name(&self.output_mint));
+        debug!(
+            "Lazily updating {}->{}",
+            debug_tools::name(&self.input_mint),
+            debug_tools::name(&self.output_mint)
+        );
         self.update(chain_data, token_cache, price_cache, path_warming_amounts)
     }
 
