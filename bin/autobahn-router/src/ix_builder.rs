@@ -10,7 +10,7 @@ use solana_program::pubkey::Pubkey;
 use std::str::FromStr;
 
 const CU_PER_HOP_DEFAULT: u32 = 75_000;
-const CU_BASE: u32 = 50_000;
+const CU_BASE: u32 = 75_000;
 
 pub trait SwapStepInstructionBuilder {
     fn build_ix(
@@ -146,13 +146,13 @@ impl<T: SwapStepInstructionBuilder> SwapInstructionsBuilder for SwapInstructions
         for step in &swap_instructions {
             if auto_create_out || (step.out_mint == sol_mint && auto_wrap_sol) {
                 Self::create_ata(&wallet_pk, &mut setup_instructions, &step.out_mint);
-                cu_estimate += 5000;
+                cu_estimate += 10_000;
             }
 
             if step.out_mint == sol_mint && auto_wrap_sol {
                 let wsol_account = get_associated_token_address(wallet_pk, &sol_mint);
                 Self::close_wsol_ata(&wallet_pk, &mut cleanup_instructions, &wsol_account)?;
-                cu_estimate += 5000;
+                cu_estimate += 10_000;
             }
 
             cu_estimate += step.cu_estimate.unwrap_or(CU_PER_HOP_DEFAULT);
