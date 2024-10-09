@@ -241,7 +241,7 @@ impl EdgeUpdater {
                     None => state.slot_excessive_lagging_since = Some(Instant::now()),
                     Some(since) => {
                         if since.elapsed() > max_lag_duration {
-                            error!(
+                            panic!(
                                 "Lagging a lot {} for more than {}s, for dex {}..",
                                 lag,
                                 max_lag_duration.as_secs(),
