@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::task::JoinHandle;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, warn};
 
 #[derive(Clone)]
 pub struct Dex {
@@ -241,15 +241,18 @@ impl EdgeUpdater {
                     None => state.slot_excessive_lagging_since = Some(Instant::now()),
                     Some(since) => {
                         if since.elapsed() > max_lag_duration {
-                            panic!(
-                                "Lagging a lot {} for more than {}s, exiting..",
+                            error!(
+                                "Lagging a lot {} for more than {}s, for dex {}..",
                                 lag,
-                                max_lag_duration.as_secs()
+                                max_lag_duration.as_secs(),
+                                self.dex.name,
                             );
                         }
                     }
                 }
                 return;
+            } else if state.slot_excessive_lagging_since.is_some() {
+                state.slot_excessive_lagging_since = None;
             }
         }
     }
@@ -333,7 +336,9 @@ impl EdgeUpdater {
         };
 
         state.received_account.insert(pk);
-        state.latest_slot_pending = slot;
+        if state.latest_slot_pending < slot {
+            state.latest_slot_pending = slot;
+        }
 
         self.check_readiness();
 
