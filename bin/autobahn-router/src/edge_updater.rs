@@ -403,7 +403,7 @@ impl EdgeUpdater {
         state.latest_slot_processed = state.latest_slot_pending;
 
         if started_at.elapsed() > Duration::from_millis(100) {
-            info!(
+            debug!(
                 "{} - refresh {} - took - {:?}",
                 self.dex.name,
                 refreshed_edges.len(),

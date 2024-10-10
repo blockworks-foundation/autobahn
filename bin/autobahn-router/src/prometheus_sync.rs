@@ -1,17 +1,16 @@
-use std::time::Duration;
-
+use axum::{routing, Router};
 use prometheus::{Encoder, TextEncoder};
+use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::task::JoinHandle;
-use tokio::{
-    io::AsyncWriteExt,
-    net::{TcpListener, TcpStream, ToSocketAddrs},
-};
-use tracing::error;
+use tower_http::cors::{AllowHeaders, AllowMethods, Any, CorsLayer};
+use tracing::{error, info};
+
+use crate::server::errors::AppError;
 
 pub struct PrometheusSync;
 
 impl PrometheusSync {
-    fn create_response(payload: &str) -> String {
+    fn create_response(payload: String) -> String {
         format!(
             "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
             payload.len(),
@@ -19,7 +18,8 @@ impl PrometheusSync {
         )
     }
 
-    async fn handle_stream(stream: &mut TcpStream) -> anyhow::Result<()> {
+    async fn get_prometheus_stream() -> Result<String, AppError> {
+        error!("got message for prometheus");
         let mut metrics_buffer = Vec::new();
         let encoder = TextEncoder::new();
 
@@ -29,29 +29,29 @@ impl PrometheusSync {
             .unwrap();
 
         let metrics_buffer = String::from_utf8(metrics_buffer).unwrap();
-        let response = Self::create_response(&metrics_buffer);
-
-        stream.writable().await?;
-        stream.write_all(response.as_bytes()).await?;
-
-        stream.flush().await?;
-
-        Ok(())
+        Ok(Self::create_response(metrics_buffer))
     }
 
     pub fn sync(addr: impl ToSocketAddrs + Send + 'static) -> JoinHandle<anyhow::Result<()>> {
         tokio::spawn(async move {
             let listener = TcpListener::bind(addr).await?;
 
-            loop {
-                let Ok((mut stream, _addr)) = listener.accept().await else {
-                    error!("Error accepting prometheus stream");
-                    tokio::time::sleep(Duration::from_millis(1)).await;
-                    continue;
-                };
+            let mut router: Router<()> = Router::new();
+            router = router.route("/metrics", routing::get(Self::get_prometheus_stream));
 
-                let _ = Self::handle_stream(&mut stream).await;
-            }
+            let cors = CorsLayer::new()
+                .allow_methods(AllowMethods::any())
+                .allow_headers(AllowHeaders::any())
+                .allow_origin(Any);
+
+            router = router.layer(cors);
+
+            let handle = axum::serve(listener, router);
+
+            info!("Prometheus Server started");
+
+            handle.await.expect("Prometheus Server failed");
+            Ok(())
         })
     }
 }
