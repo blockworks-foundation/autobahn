@@ -99,6 +99,14 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::load(&args[1])?;
     let router_version = RouterVersion::OverestimateAmount;
 
+    if config.metrics.output_http {
+        let prom_bind_addr = config
+            .metrics
+            .prometheus_address
+            .clone()
+            .expect("prometheus_address must be set");
+        PrometheusSync::sync(prom_bind_addr);
+    }
     let hot_mints = Arc::new(RwLock::new(HotMintsCache::new(&config.hot_mints)));
 
     let mango_data = match mango::mango_fetcher::fetch_mango_data().await {
@@ -200,14 +208,6 @@ async fn main() -> anyhow::Result<()> {
         exit(-1);
     };
 
-    if config.metrics.output_http {
-        let prom_bind_addr = config
-            .metrics
-            .prometheus_address
-            .clone()
-            .expect("prometheus_address must be set");
-        let _prometheus = PrometheusSync::sync(prom_bind_addr);
-    }
     if config.metrics.output_stdout {
         warn!("metrics output to stdout is not supported yet");
     }
