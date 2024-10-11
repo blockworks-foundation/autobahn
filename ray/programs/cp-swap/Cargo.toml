@@ -1,0 +1,48 @@
+[package]
+name = "raydium-cp-swap"
+version = "0.1.142"
+description = "Created with Anchor"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "raydium_cp_swap"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+enable-log = []
+devnet = []
+fomo3d-raydium-cp-swap-client = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.29.0", features = ["init-if-needed"] }
+anchor-spl = { version = "0.29.0", features = ["metadata"] }
+spl-token = { version = "4.0.0", features = ["no-entrypoint"] }
+spl-math = { version = "0.2", features = ["no-entrypoint"] }
+spl-memo = { version = "4.0.0", features = ["no-entrypoint"] }
+uint = "0.9.1"
+solana-security-txt = "1.1.1"
+bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
+arrayref = "0.3.6"
+spl-token-2022 = { version = "^0.9.0", features = ["no-entrypoint"] }
+mpl-token-metadata = { version = "4.1.2" }
+num-traits = "0.2.19"
+
+[dev-dependencies]
+quickcheck = "0.9"
+proptest = "1.0"
+rand = "0.8.5"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+opt-level = "z"
+strip = true
+overflow-checks = true
