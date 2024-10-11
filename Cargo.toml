@@ -26,8 +26,8 @@ stable-swap = { version = "1.8.1", features = ["no-entrypoint", "client"] }
 stable-swap-client = { version = "1.8.1" }
 stable-swap-math = { version = "1.8.1" }
 uint = { version = "0.9.1" }
-quic-geyser-client = { git = "https://github.com/blockworks-foundation/quic_geyser_plugin.git", branch = "router_new_streaming" }
-quic-geyser-common = { git = "https://github.com/blockworks-foundation/quic_geyser_plugin.git", branch = "router_new_streaming" }
+quic-geyser-client = { git = "https://github.com/blockworks-foundation/quic_geyser_plugin.git", branch = "router_v1.17.29" }
+quic-geyser-common = { git = "https://github.com/blockworks-foundation/quic_geyser_plugin.git", branch = "router_v1.17.29" }
 
 [profile.release]
 overflow-checks = true
