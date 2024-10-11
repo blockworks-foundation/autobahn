@@ -8,6 +8,8 @@ use solana_program::rent::Rent;
 use solana_program::system_instruction;
 use solana_program::system_program;
 
+use crate::logs::{emit_stack, CreateReferralLog};
+
 pub fn execute_create_referral(accounts: &[AccountInfo], instruction_data: &[u8]) -> ProgramResult {
     if let [payer, referrer, vault, mint, system_program, token_program] = accounts {
         // verify token program is passed
@@ -61,6 +63,13 @@ pub fn execute_create_referral(accounts: &[AccountInfo], instruction_data: &[u8]
         let initialize_account_infos = [vault.clone(), mint.clone(), token_program.clone()];
 
         invoke(&initialize_ix, &initialize_account_infos)?;
+
+        emit_stack(CreateReferralLog {
+            referee: *payer.key,
+            referer: *referrer.key,
+            vault: *vault.key,
+            mint: *mint.key,
+        })?;
 
         Ok(())
     } else {

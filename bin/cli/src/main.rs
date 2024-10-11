@@ -166,6 +166,10 @@ async fn main() -> Result<(), anyhow::Error> {
                     let event = bytemuck::from_bytes::<ReferrerWithdrawLog>(&decoded[8..]);
                     println!("ReferrerWithdrawLog - referer: {:?}, referer_token_account: {:?}, amount: {}", event.referer, event.referer_token_account, event.amount);
                 }
+                &CREATE_REFERRAL_LOG_DISCRIMINANT => {
+                    let event = bytemuck::from_bytes::<CreateReferralLog>(&decoded[8..]);
+                    println!("CreateReferralLog - referer: {:?}, referee: {:?}, vault: {:?}, mint: {:?}", event.referer, event.referee, event.vault, event.mint);
+                }
                 _ => panic!("Unknown log discriminant"),
             }
         }
