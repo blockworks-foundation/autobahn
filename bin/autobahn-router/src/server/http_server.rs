@@ -375,10 +375,9 @@ impl HttpServer {
         ];
 
         let transaction_addresses = ixs.accounts().into_iter().collect();
-        let instructions = ixs
-            .setup_instructions
+        let instructions = compute_budget_ixs
             .into_iter()
-            .chain(compute_budget_ixs.into_iter())
+            .chain(ixs.setup_instructions.into_iter())
             .chain(vec![ixs.swap_instruction].into_iter())
             .chain(ixs.cleanup_instructions.into_iter())
             .collect_vec();
