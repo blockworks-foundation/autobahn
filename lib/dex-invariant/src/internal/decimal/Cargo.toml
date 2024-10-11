@@ -1,0 +1,13 @@
+[package]
+name = "decimal"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[dependencies]
+decimal_core = { path = "decimal_core" }
+integer-sqrt = "0.1.5"
+uint = "0.9"
+num-traits = "0.2.14"

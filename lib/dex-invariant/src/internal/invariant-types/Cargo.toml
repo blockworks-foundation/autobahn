@@ -1,0 +1,19 @@
+[package]
+name = "invariant-types"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[dependencies]
+anchor-lang = "0.26.0"
+borsh = {version = "0.9.3", features = ["const-generics"]}
+decimal = { path = "../decimal" }
+num-traits = "0.2.18"
+thiserror = "1.0.61"
+num-derive = "0.3.3"
+bytemuck = "1.16.0"
+arrayref = "0.3.6"
+serde = "1.0"
+safe-transmute = "0.11.3"
