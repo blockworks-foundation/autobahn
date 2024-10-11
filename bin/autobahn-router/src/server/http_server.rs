@@ -379,7 +379,7 @@ impl HttpServer {
         )?;
 
         let compute_budget_ixs = vec![
-            ComputeBudgetInstruction::set_compute_unit_price(compute_unit_price_microlamports), // ~0.01 lamport / CU
+            ComputeBudgetInstruction::set_compute_unit_price(compute_unit_price_microlamports),
             ComputeBudgetInstruction::set_compute_unit_limit(ixs.cu_estimate),
         ];
 
@@ -462,7 +462,7 @@ impl HttpServer {
         let compute_budget_ixs = vec![
             InstructionResponse::from_ix(ComputeBudgetInstruction::set_compute_unit_price(
                 compute_unit_price_microlamports,
-            ))?, // ~0.01 lamport / CU
+            ))?,
             InstructionResponse::from_ix(ComputeBudgetInstruction::set_compute_unit_limit(
                 ixs.cu_estimate,
             ))?,
