@@ -179,6 +179,7 @@ impl HttpServer {
                 0,
                 "0".to_string(),
                 swap_mode,
+                None,
             )
             .await?;
 
@@ -294,6 +295,7 @@ impl HttpServer {
             input.quote_response.slippage_bps,
             input.quote_response.other_amount_threshold,
             swap_mode,
+            input.compute_unit_price_micro_lamports
         )
         .await?;
 
@@ -356,6 +358,7 @@ impl HttpServer {
         slippage_bps: i32,
         other_amount_threshold: String,
         swap_mode: SwapMode,
+        compute_unit_price_microlamports: Option<u64>,
     ) -> Result<(Vec<u8>, usize), AppError> {
         let wallet_pk = Pubkey::from_str(&wallet_pk)?;
 
@@ -369,8 +372,13 @@ impl HttpServer {
             swap_mode,
         )?;
 
+        let cu_price = match compute_unit_price_microlamports {
+            Some(price) => price,
+            None => 10_000,
+        };
+
         let compute_budget_ixs = vec![
-            ComputeBudgetInstruction::set_compute_unit_price(10_000), // ~0.01 lamport / CU
+            ComputeBudgetInstruction::set_compute_unit_price(cu_price), // ~0.01 lamport / CU
             ComputeBudgetInstruction::set_compute_unit_limit(ixs.cu_estimate),
         ];
 
