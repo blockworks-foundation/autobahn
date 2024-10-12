@@ -9,6 +9,21 @@ use solana_program::instruction::Instruction;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::account::ReadableAccount;
 
+
+pub fn try_deserialize_unchecked_from_bytes_zc(input: &[u8]) -> Result<PoolState, anyhow::Error> {
+    if input.is_empty() {
+        return Err(anyhow::anyhow!("Input data is empty"));
+    }
+    if input.len() < 8 {
+        return Err(anyhow::anyhow!("Input data is too short"));
+    }
+    let pool_state = unsafe {
+        let pool_state_ptr = input[8..].as_ptr() as *const PoolState;
+        std::ptr::read_unaligned(pool_state_ptr)
+    };
+    Ok(pool_state)
+}
+
 pub fn build_swap_ix(
     id: &GobblerEdgeIdentifier,
     chain_data: &AccountProviderView,
@@ -18,7 +33,11 @@ pub fn build_swap_ix(
     max_slippage_bps: i32,
 ) -> anyhow::Result<SwapInstruction> {
     let pool_account = chain_data.account(&id.pool)?;
-    let pool = PoolState::try_deserialize(&mut pool_account.account.data())?;
+    let mut pool = PoolState::default();
+    let pm = try_deserialize_unchecked_from_bytes_zc(&pool_account.account.data());
+    if pm.is_ok() {
+        pool = pm?;
+    }
 
     let amount = in_amount;
     let other_amount_threshold =
