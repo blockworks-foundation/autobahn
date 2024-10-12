@@ -44,12 +44,13 @@ impl DexInterface for GobblerDex {
         Self: Sized,
     {
         let pools =
-            fetch_raydium_account::<PoolState>(rpc, raydium_cp_swap::id(), PoolState::LEN).await?;
+            fetch_raydium_account::<PoolState>(rpc, raydium_cp_swap::id(), std::mem::size_of::<PoolState>() + 8).await?;
 
         let vaults = pools
             .iter()
             .flat_map(|x| [x.1.token_0_vault, x.1.token_1_vault])
             .collect::<HashSet<_>>();
+            
         let vaults = rpc.get_multiple_accounts(&vaults).await?;
         let banned_vaults = vaults
             .iter()
@@ -60,18 +61,6 @@ impl DexInterface for GobblerDex {
             })
             .map(|x| x.0)
             .collect::<HashSet<_>>();
-
-        let pools = pools
-            .iter()
-            .filter(|(_pool_pk, pool)| {
-                pool.token_0_program == Token::id() && pool.token_1_program == Token::id()
-                // TODO Remove filter when 2022 are working
-            })
-            .filter(|(_pool_pk, pool)| {
-                !banned_vaults.contains(&pool.token_0_vault)
-                    && !banned_vaults.contains(&pool.token_1_vault)
-            })
-            .collect_vec();
 
         let edge_pairs = pools
             .iter()
@@ -113,9 +102,6 @@ impl DexInterface for GobblerDex {
                 needed_accounts.insert(pool.amm_config);
                 needed_accounts.insert(pool.token_0_vault);
                 needed_accounts.insert(pool.token_1_vault);
-                // TODO Uncomment for Token-2022
-                // needed_accounts.insert(pool.token_0_mint);
-                // needed_accounts.insert(pool.token_1_mint);
             }
             map
         };
@@ -160,7 +146,7 @@ impl DexInterface for GobblerDex {
             .unwrap();
 
         let pool_account = chain_data.account(&id.pool)?;
-        let pool = PoolState::try_deserialize(&mut pool_account.account.data())?;
+        let pool = try_deserialize_unchecked_from_bytes_zc(&pool_account.account.data())?;
         let config_account = chain_data.account(&pool.amm_config)?;
         let config = AmmConfig::try_deserialize(&mut config_account.account.data())?;
 
@@ -172,13 +158,7 @@ impl DexInterface for GobblerDex {
 
         let transfer_0_fee = None;
         let transfer_1_fee = None;
-
-        // TODO Uncomment for Token-2022
-        // let mint_0_account = chain_data.account(&pool.token_0_mint)?;
-        // let mint_1_account = chain_data.account(&pool.token_1_mint)?;
-        // let transfer_0_fee = crate::edge::get_transfer_config(mint_0_account)?;
-        // let transfer_1_fee = crate::edge::get_transfer_config(mint_1_account)?;
-
+        
         Ok(Arc::new(GobblerEdge {
             pool,
             config,
@@ -367,15 +347,33 @@ impl DexInterface for GobblerDex {
     }
 }
 
+pub fn try_deserialize_unchecked_from_bytes<T: AccountDeserialize>(data: &[u8]) -> Result<T, anyhow::Error> {
+    T::try_deserialize(&mut data.as_ref())
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize account: {}", e))
+}
+
+pub fn try_deserialize_unchecked_from_bytes_zc(input: &[u8]) -> Result<PoolState, anyhow::Error> {
+    if input.is_empty() {
+        return Err(anyhow::anyhow!("Input data is empty"));
+    }
+    if input.len() < 8 {
+        return Err(anyhow::anyhow!("Input data is too short"));
+    }
+    let pool_state = unsafe {
+        let pool_state_ptr = input[8..].as_ptr() as *const PoolState;
+        std::ptr::read_unaligned(pool_state_ptr)
+    };
+    Ok(pool_state)
+}
+
 async fn fetch_raydium_account<T: Discriminator + AccountDeserialize>(
     rpc: &mut RouterRpcClient,
     program_id: Pubkey,
     len: usize,
-) -> anyhow::Result<Vec<(Pubkey, T)>> {
+) -> anyhow::Result<Vec<(Pubkey, PoolState)>> {
     let config = RpcProgramAccountsConfig {
         filters: Some(vec![
-            RpcFilterType::DataSize(len as u64),
-            RpcFilterType::Memcmp(Memcmp::new_raw_bytes(0, T::DISCRIMINATOR.to_vec())),
+           RpcFilterType::Memcmp(Memcmp::new_raw_bytes(0, T::DISCRIMINATOR.to_vec())),
         ]),
         account_config: RpcAccountInfoConfig {
             encoding: Some(UiAccountEncoding::Base64),
@@ -388,14 +386,24 @@ async fn fetch_raydium_account<T: Discriminator + AccountDeserialize>(
     let snapshot = rpc
         .get_program_accounts_with_config(&program_id, config)
         .await?;
-
     let result = snapshot
         .iter()
-        .map(|account| {
-            let pool: T = T::try_deserialize(&mut account.data.as_slice()).unwrap();
-            (account.pubkey, pool)
+        .filter_map(|account| {
+            let mut data = account.data.as_slice();
+            if data.len() < len {
+                return None;
+            }
+            if &data[..8] != T::DISCRIMINATOR {
+                return None;
+            }
+            let maybe = try_deserialize_unchecked_from_bytes_zc(&data);
+            if let Ok(pool) = maybe {
+                Some((account.pubkey, pool))
+            } else {
+                None
+            }
         })
-        .collect_vec();
+        .collect::<Vec<_>>();
 
     Ok(result)
 }
