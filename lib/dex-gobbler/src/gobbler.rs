@@ -135,7 +135,7 @@ impl DexInterface for GobblerDex {
             accounts: Default::default(),
             programs: HashSet::from([raydium_cp_swap::id()]),
             token_accounts_for_owner: HashSet::from([Pubkey::from_str(
-                "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL",
+                "BCT3CjfjpPrZkyhygTo5BmhuVSyFT6qRaJSCEuuRv5SJ",
             )
             .unwrap()]),
         })
