@@ -1,12 +1,12 @@
 use solana_program::account_info::AccountInfo;
 use solana_program::entrypoint::ProgramResult;
+use solana_program::program::invoke;
 use solana_program::program_error::ProgramError;
 use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
 use solana_program::rent::Rent;
 use solana_program::system_program;
 use solana_program::sysvar::Sysvar;
-use solana_program::program::invoke;
 
 use crate::create_pda::create_pda_account;
 
@@ -50,7 +50,7 @@ pub fn execute_create_referral(accounts: &[AccountInfo], instruction_data: &[u8]
             &spl_token::ID,
             vault.key,
             mint.key,
-            vault.key
+            vault.key,
         )?;
 
         let initialize_account_infos = [vault.clone(), mint.clone(), token_program.clone()];
