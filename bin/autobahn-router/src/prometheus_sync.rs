@@ -2,7 +2,6 @@ use axum::{routing, Router};
 use prometheus::{Encoder, TextEncoder};
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::task::JoinHandle;
-use tower_http::cors::{AllowHeaders, AllowMethods, Any, CorsLayer};
 use tracing::{error, info};
 
 use crate::server::errors::AppError;
@@ -38,13 +37,6 @@ impl PrometheusSync {
 
             let mut router: Router<()> = Router::new();
             router = router.route("/metrics", routing::get(Self::get_prometheus_stream));
-
-            let cors = CorsLayer::new()
-                .allow_methods(AllowMethods::any())
-                .allow_headers(AllowHeaders::any())
-                .allow_origin(Any);
-
-            router = router.layer(cors);
 
             let handle = axum::serve(listener, router);
 
