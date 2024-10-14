@@ -681,7 +681,7 @@ dependencies = [
 
 [[package]]
 name = "autobahn-executor"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "bonfida-test-utils",
  "bytemuck",
