@@ -157,12 +157,10 @@ impl InvariantDex {
             found.reverse();
         }
 
-        let a = found
+        found
             .iter()
             .map(|i: &i32| (i - TICK_LIMIT) * tick_spacing)
-            .collect();
-        dbg!(&a);
-        a
+            .collect()
     }
 
     fn load_edge(
@@ -347,7 +345,6 @@ impl DexInterface for InvariantDex {
         };
 
         let edge = Self::load_edge(id, chain_data)?;
-        dbg!(&edge);
 
         let swap_ix = build_swap_ix(
             id,

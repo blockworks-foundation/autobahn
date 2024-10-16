@@ -163,7 +163,6 @@ impl InvariantEdge {
                 global_insufficient_liquidity = true;
                 break;
             }
-            dbg!(result.next_price_sqrt, limiting_tick);
             // crossing tick
             if result.next_price_sqrt == swap_limit && limiting_tick.is_some() {
                 let (tick_index, initialized) = limiting_tick.unwrap();

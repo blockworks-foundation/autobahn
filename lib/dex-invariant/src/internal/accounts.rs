@@ -100,7 +100,7 @@ impl InvariantSwapAccounts {
             .iter()
             .map(|tick_address| AccountMeta::new(*tick_address, false))
             .collect();
-        dbg!(&ticks_metas);
+
         account_metas.extend(ticks_metas);
 
         account_metas

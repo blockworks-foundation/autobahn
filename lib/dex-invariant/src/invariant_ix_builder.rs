@@ -47,8 +47,6 @@ pub fn build_swap_ix(
         anyhow::bail!("Insufficient liquidity");
     };
 
-    dbg!(invariant_swap_result.used_ticks.len());
-
     let swap_params = InvariantSwapParams {
         source_account,
         destination_account,
