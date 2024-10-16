@@ -2110,6 +2110,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "dex-gamma"
+version = "0.1.0"
+dependencies = [
+ "anchor-client",
+ "anchor-lang",
+ "anchor-spl",
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "gamma",
+ "itertools 0.10.5",
+ "mango-feeds-connector",
+ "router-feed-lib",
+ "router-lib",
+ "router-test-lib",
+ "serde",
+ "serde_derive",
+ "sha2 0.10.8",
+ "solana-account-decoder",
+ "solana-client",
+ "solana-logger",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-associated-token-account 1.1.3",
+ "tracing",
+]
+
+[[package]]
 name = "dex-infinity"
 version = "0.0.1"
 dependencies = [
@@ -2867,6 +2896,21 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
+]
+
+[[package]]
+name = "gamma"
+version = "0.1.0"
+source = "git+https://github.com/GooseFX1/gamma-swap/?branch=testing#38fdd63239a3be9ea73a1bddb6813c74672150ef"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "referral",
+ "solana-security-txt",
+ "spl-math",
+ "spl-memo 4.0.0",
+ "spl-token 4.0.0",
+ "uint",
 ]
 
 [[package]]
@@ -5830,6 +5874,15 @@ dependencies = [
  "getrandom 0.2.14",
  "libredox",
  "thiserror",
+]
+
+[[package]]
+name = "referral"
+version = "0.1.0"
+source = "git+https://github.com/GooseFX1/gfx-referral.git?branch=make-types-public#3d353a8027bcaca1de6c7062b7e90450030e56ba"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
 ]
 
 [[package]]
