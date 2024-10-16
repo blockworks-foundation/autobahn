@@ -12,10 +12,20 @@ use std::sync::Arc;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SwapInstruction {
+    /// Instruction to be executed by the user to swap through an edge.
     pub instruction: Instruction,
+    /// Address of the user's associated token account that will receive
+    /// the proceeds of the swap after invoking instruction.
     pub out_pubkey: Pubkey,
+    /// Mint of the tokens received from the swap.
     pub out_mint: Pubkey,
+    /// Byte offset in Instruction.data that the onchain executor program
+    /// will use to replace the input amount with the proceeds of the
+    /// previous swap before cpi-invocation of this edge.
+    /// instruction.data\[in_amount_offset..in_amount_offset+8\] = in_amount
     pub in_amount_offset: u16,
+    /// Conservative upper bound estimate of compute cost. If it is too low
+    /// transactions will fail, if it is too high, they will confirm slower.
     pub cu_estimate: Option<u32>,
 }
 
