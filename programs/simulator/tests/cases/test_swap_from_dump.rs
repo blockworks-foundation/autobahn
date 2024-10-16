@@ -70,6 +70,11 @@ async fn test_quote_match_swap_for_infinity() -> anyhow::Result<()> {
     run_all_swap_from_dump("infinity_swap.lz4").await?
 }
 
+#[tokio::test]
+async fn test_quote_match_swap_for_invariant() -> anyhow::Result<()> {
+    run_all_swap_from_dump("invariant_swap.lz4").await?
+}
+
 async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Error> {
     let mut skip_count = option_env!("SKIP_COUNT")
         .map(|x| u32::from_str(x).unwrap_or(0))

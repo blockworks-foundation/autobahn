@@ -1,4 +1,4 @@
-use std::convert::TryInto;
+use std::{convert::TryInto, fmt::Debug};
 
 use crate::size;
 use anchor_lang::prelude::*;
@@ -15,7 +15,15 @@ impl Default for Tickmap {
         Tickmap { bitmap: [0; 11091] }
     }
 }
-
+impl Debug for Tickmap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:?}",
+            self.bitmap.iter().fold(0, |acc, v| acc + v.count_ones())
+        )
+    }
+}
 size!(Tickmap);
 
 pub const TICK_LIMIT: i32 = 44_364; // If you change it update length of array as well!

@@ -503,7 +503,7 @@ pub fn is_enough_amount_to_push_price(
     Ok(current_price_sqrt.ne(&next_price_sqrt))
 }
 
-pub fn cross_tick(tick: &mut RefMut<Tick>, pool: &mut Pool) -> Result<()> {
+pub fn cross_tick(tick: &mut Tick, pool: &mut Pool) -> Result<()> {
     tick.fee_growth_outside_x = pool
         .fee_growth_global_x
         .unchecked_sub(tick.fee_growth_outside_x);
