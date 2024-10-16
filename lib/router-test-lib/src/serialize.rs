@@ -12,6 +12,7 @@ where
     let mut writer = lz4::EncoderBuilder::new().build(file_writer).unwrap();
     writer.write_all(serialized_data.as_slice()).unwrap();
     writer.flush().unwrap();
+    let _ = writer.finish();
 }
 
 pub fn deserialize_from_file<T>(path: &String) -> anyhow::Result<T>

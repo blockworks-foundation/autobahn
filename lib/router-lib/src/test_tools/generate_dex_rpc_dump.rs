@@ -232,6 +232,25 @@ pub async fn run_dump_swap_ix_with_custom_amount(
             is_exact_out: false,
         });
 
+        let chain_data_reader = chain_data.read().unwrap();
+        for account in swap_ix.instruction.accounts {
+            if let Ok(acc) = chain_data_reader.account(&account.pubkey) {
+                dump.accounts.insert(account.pubkey, acc.account.clone());
+            } else {
+                error!("Missing account (needed for swap) {}", account.pubkey);
+            }
+        }
+        let account = chain_data_reader
+            .account(&id.input_mint())
+            .expect("missing mint");
+        dump.accounts
+            .insert(id.input_mint(), account.account.clone());
+        let account = chain_data_reader
+            .account(&id.input_mint())
+            .expect("missing mint");
+        dump.accounts
+            .insert(id.output_mint(), account.account.clone());
+
         // build exact out tests
         if dex.supports_exact_out(&id) {
             let Ok(mut quote_exact_out) =
@@ -284,41 +303,8 @@ pub async fn run_dump_swap_ix_with_custom_amount(
                         error!("Missing account (needed for swap) {}", account.pubkey);
                     }
                 }
-
-                let account = chain_data_reader
-                    .account(&id.input_mint())
-                    .expect("missing mint");
-                dump.accounts
-                    .insert(id.input_mint(), account.account.clone());
-
-                let account = chain_data_reader
-                    .account(&id.input_mint())
-                    .expect("missing mint");
-                dump.accounts
-                    .insert(id.output_mint(), account.account.clone());
             }
         }
-
-        let chain_data_reader = chain_data.read().unwrap();
-        for account in swap_ix.instruction.accounts {
-            if let Ok(acc) = chain_data_reader.account(&account.pubkey) {
-                dump.accounts.insert(account.pubkey, acc.account.clone());
-            } else {
-                error!("Missing account (needed for swap) {}", account.pubkey);
-            }
-        }
-
-        let account = chain_data_reader
-            .account(&id.input_mint())
-            .expect("missing mint");
-        dump.accounts
-            .insert(id.input_mint(), account.account.clone());
-
-        let account = chain_data_reader
-            .account(&id.input_mint())
-            .expect("missing mint");
-        dump.accounts
-            .insert(id.output_mint(), account.account.clone());
     }
 
     println!("Error count: {}", errors);
