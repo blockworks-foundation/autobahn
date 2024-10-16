@@ -62,8 +62,10 @@ impl DexEdgeIdentifier for InvariantEdgeIdentifier {
 
 #[derive(Default, Debug)]
 pub struct InvariantEdge {
+    // TODO: use pubkeys or indexes
     pub ticks: Vec<Tick>,
     pub pool: Pool,
+    // TODO: possibly remove and use raw data with bytemuck?
     pub tickmap: Tickmap,
 }
 
@@ -251,6 +253,13 @@ impl InvariantEdge {
                 }
             }
         }
+
+        // TODO: split into multiple errors or move up
+        if remaining_amount.0 != 0 || ticks_accounts_outdated || global_insufficient_liquidity {
+            return Err("Insuffcient liquidity".into());    
+        }
+
+        // TODO remove unused fields         
         Ok(InvariantSwapResult {
             in_amount: total_amount_in.0,
             out_amount: total_amount_out.0,
