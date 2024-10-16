@@ -24,7 +24,11 @@ use solana_client::{
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
     rpc_filter::RpcFilterType,
 };
-use solana_sdk::{account::ReadableAccount, pubkey::Pubkey};
+use solana_sdk::{
+    account::ReadableAccount,
+    commitment_config::CommitmentConfig,
+    pubkey::Pubkey,
+};
 use tracing::info;
 
 use crate::{
@@ -127,7 +131,9 @@ impl InvariantDex {
         }
         let mut found: Vec<i32> = Vec::new();
         let current_index = current / tick_spacing + TICK_LIMIT;
-        let (mut above, mut below, mut reached_limit) = (current_index + 1, current_index, false);
+        let max_index = get_max_tick(pool.tick_spacing).unwrap() / tick_spacing + TICK_LIMIT;
+        let (mut above, mut below, mut reached_limit) =
+            ((current_index + 1).min(max_index), current_index, false);
 
         while !reached_limit && found.len() < amount_limit {
             match direction {
