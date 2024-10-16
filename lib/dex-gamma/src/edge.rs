@@ -42,7 +42,7 @@ impl DexEdgeIdentifier for GammaEdgeIdentifier {
     }
 
     fn accounts_needed(&self) -> usize {
-        13
+        11
     }
 
     fn as_any(&self) -> &dyn Any {

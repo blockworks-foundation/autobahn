@@ -117,6 +117,9 @@ pub trait DexEdgeIdentifier: Sync + Send {
     fn desc(&self) -> String;
     fn input_mint(&self) -> Pubkey;
     fn output_mint(&self) -> Pubkey;
+    /// This should count all account needed to make a swap, excluding:
+    /// - user wallet address
+    /// - user output ATA
     fn accounts_needed(&self) -> usize;
     fn as_any(&self) -> &dyn Any;
 }
