@@ -386,14 +386,14 @@ where
         }
 
         let err_str = if is_slippage_error {
-            "Failed to execute TX : Max Slippage Reached"
+            "Failed to execute TX : Max Slippage Reached".to_string()
         } else if is_cu_error {
-            "Failed to execute TX : Exceeded CUs meter"
+            "Failed to execute TX : Exceeded CUs meter".to_string()
         } else {
-            "Failed to execute TX"
+            format!("Failed to execute TX : {err:?}")
         };
 
-        return Ok((out_amount, false, accounts, 0, err_str.to_string()));
+        return Ok((out_amount, false, accounts, 0, err_str));
     };
 
     let Some(after_accounts) = simulation_result.value.accounts else {
