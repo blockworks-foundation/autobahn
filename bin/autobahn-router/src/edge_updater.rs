@@ -1,4 +1,5 @@
 use crate::edge::Edge;
+use crate::hot_mints::{HotMintUpdate, HotMintsCache};
 use crate::metrics;
 use crate::token_cache::TokenCache;
 use crate::util::tokio_spawn;
@@ -11,7 +12,7 @@ use router_lib::price_feeds::price_cache::PriceCache;
 use router_lib::price_feeds::price_feed::PriceUpdate;
 use solana_program::pubkey::Pubkey;
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
@@ -76,6 +77,8 @@ pub fn spawn_updater_job(
     token_cache: TokenCache,
     price_cache: PriceCache,
     path_warming_amounts: Vec<u64>,
+    hot_mints: Arc<RwLock<HotMintsCache>>,
+    mut hot_mints_receiver: broadcast::Receiver<HotMintUpdate>,
     register_mint_sender: async_channel::Sender<Pubkey>,
     ready_sender: async_channel::Sender<()>,
     mut slot_updates: broadcast::Receiver<u64>,
@@ -184,6 +187,19 @@ pub fn spawn_updater_job(
                 },
                 Ok(price_upd) = price_updates.recv() => {
                     if let Some(impacted_edges) = updater.state.edges_per_mint.get(&price_upd.mint) {
+                        let reader = hot_mints.read().unwrap();
+                        for edge in impacted_edges {
+                            if reader.is_hot(&edge.input_mint) {
+                                updater.state.dirty_edges.insert(edge.unique_id(), edge.clone());
+                            }
+                            else {
+                                edge.mark_as_dirty();
+                            }
+                        }
+                    };
+                },
+                Ok(hot_mint_upd) = hot_mints_receiver.recv() => {
+                    if let Some(impacted_edges) = updater.state.edges_per_mint.get(&hot_mint_upd.mint) {
                         for edge in impacted_edges {
                             updater.state.dirty_edges.insert(edge.unique_id(), edge.clone());
                         }

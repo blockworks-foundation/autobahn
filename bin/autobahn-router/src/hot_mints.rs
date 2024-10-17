@@ -1,8 +1,10 @@
 use crate::debug_tools;
 use router_config_lib::HotMintsConfig;
+use serde_derive::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 use std::collections::{HashSet, VecDeque};
 use std::str::FromStr;
+use tokio::sync::broadcast;
 use tracing::info;
 
 pub struct HotMintsCache {
@@ -10,9 +12,41 @@ pub struct HotMintsCache {
     always_hot: HashSet<Pubkey>,
     latest_unordered: HashSet<Pubkey>,
     latest_ordered: VecDeque<Pubkey>,
+    sender: Option<broadcast::Sender<HotMintUpdate>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HotMintUpdate {
+    pub mint: Pubkey,
 }
 
 impl HotMintsCache {
+    pub fn new_with_watcher(
+        config: &Option<HotMintsConfig>,
+        sender: broadcast::Sender<HotMintUpdate>,
+    ) -> Self {
+        let config = config.clone().unwrap_or(HotMintsConfig {
+            always_hot_mints: vec![
+                "So11111111111111111111111111111111111111112".to_string(),
+                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
+                "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB".to_string(),
+            ],
+            keep_latest_count: 100,
+        });
+
+        HotMintsCache {
+            max_count: config.keep_latest_count,
+            always_hot: config
+                .always_hot_mints
+                .iter()
+                .map(|x| Pubkey::from_str(x).unwrap())
+                .collect(),
+            latest_unordered: Default::default(),
+            latest_ordered: Default::default(),
+            sender: Some(sender),
+        }
+    }
+
     pub fn new(config: &Option<HotMintsConfig>) -> Self {
         let config = config.clone().unwrap_or(HotMintsConfig {
             always_hot_mints: vec![
@@ -32,6 +66,7 @@ impl HotMintsCache {
                 .collect(),
             latest_unordered: Default::default(),
             latest_ordered: Default::default(),
+            sender: None,
         }
     }
 
@@ -54,6 +89,12 @@ impl HotMintsCache {
         }
 
         if self.latest_unordered.insert(pubkey) {
+            if let Some(sender) = &self.sender {
+                if sender.receiver_count() > 0 {
+                    sender.send(HotMintUpdate { mint: pubkey }).unwrap();
+                }
+            }
+
             info!("Adding {} to hot mints", debug_tools::name(&pubkey));
         }
         self.latest_ordered.push_front(pubkey);
@@ -65,6 +106,10 @@ impl HotMintsCache {
             .union(&self.always_hot)
             .copied()
             .collect()
+    }
+
+    pub fn is_hot(&self, mint: &Pubkey) -> bool {
+        self.latest_unordered.contains(mint) || self.always_hot.contains(mint)
     }
 }
 

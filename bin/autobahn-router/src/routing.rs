@@ -2,18 +2,19 @@ use crate::debug_tools;
 use crate::metrics;
 use crate::prelude::*;
 use crate::routing_objectpool::RoutingObjectPools;
+use crate::routing_types::*;
+use crate::token_cache::TokenCache;
 use mango_feeds_connector::chain_data::AccountData;
 use ordered_float::NotNan;
 use router_config_lib::Config;
 use router_lib::dex::SwapMode;
 use router_lib::dex::{AccountProviderView, DexEdge};
+use router_lib::price_feeds::price_cache::PriceCache;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::time::{Duration, Instant};
 use std::u64;
 use thiserror::Error;
 use tracing::Level;
-
-use crate::routing_types::*;
 
 #[derive(Error, Debug)]
 pub enum RoutingError {
@@ -1888,6 +1889,26 @@ impl Routing {
             prices,
             " - available edge"
         );
+    }
+
+    pub fn lazy_compute_prices(
+        &self,
+        chain_data: &AccountProviderView,
+        token_cache: &TokenCache,
+        price_cache: &PriceCache,
+        input_mint: &Pubkey,
+        output_mint: &Pubkey,
+    ) {
+        for edge in &self.edges {
+            if edge.input_mint.eq(input_mint) || edge.output_mint.eq(output_mint) {
+                edge.update_if_needed(
+                    chain_data,
+                    token_cache,
+                    price_cache,
+                    &self.path_warming_amounts,
+                )
+            }
+        }
     }
 }
 
