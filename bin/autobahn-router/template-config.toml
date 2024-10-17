@@ -1,3 +1,5 @@
+snapshot_timeout_in_seconds = 900
+
 [infinity]
 enabled = true
 
@@ -22,8 +24,8 @@ add_mango_tokens = false
 [raydium]
 enabled = true
 mints = []
-take_all_mints = false
-add_mango_tokens = true
+take_all_mints = true
+add_mango_tokens = false
 
 [raydium_cp]
 enabled = true
@@ -77,6 +79,7 @@ dedup_queue_size = 50000
 rpc_http_url = "$RPC_HTTP_URL"
 rpc_support_compression = true
 re_snapshot_interval_secs = 1200
+request_timeout_in_seconds = 300
 
 [[sources.grpc_sources]]
 name = "router-other"
@@ -90,12 +93,19 @@ dedup_queue_size = 50000
 rpc_http_url = "$AMS_RPC_HTTP_URL"
 rpc_support_compression = true
 re_snapshot_interval_secs = 1200
+request_timeout_in_seconds = 300
 
 [[sources.grpc_sources]]
 name = "router-ams"
 connection_string = "$AMS_RPC_HTTP_URL_WITHOUT_TOKEN"
 token = "$AMS_RPC_TOKEN"
 retry_connection_sleep_secs = 30
+
+[[sources.quic_sources]]
+name = "quic-client"
+connection_string = "$AMS_RPC_QUIC_URL"
+retry_connection_sleep_secs = 1
+enable_gso = false
 
 [price_feed]
 birdeye_token = "$BIRDEYE_TOKEN"
