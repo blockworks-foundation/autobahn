@@ -522,6 +522,19 @@ pub fn cross_tick(tick: &mut Tick, pool: &mut Pool) -> Result<()> {
     Ok(())
 }
 
+pub fn cross_tick_no_fee_growth_update(tick: &Tick, pool: &mut Pool) -> Result<()> {
+    // When going to higher tick net_liquidity should be added and for going lower subtracted
+    let new_liquidity = if (pool.current_tick_index >= tick.index) ^ tick.sign {
+        pool.liquidity.checked_add(tick.liquidity_change)
+    } else {
+        pool.liquidity.checked_sub(tick.liquidity_change)
+    };
+
+    pool.liquidity = new_liquidity.map_err(|_| InvariantErrorCode::InvalidPoolLiquidity)?;
+    Ok(())
+}
+
+
 pub fn get_max_tick(tick_spacing: u16) -> TrackableResult<i32> {
     let limit_by_space = TICK_LIMIT
         .checked_sub(1)

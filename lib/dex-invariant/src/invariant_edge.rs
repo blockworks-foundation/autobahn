@@ -2,17 +2,18 @@ use crate::internal::swap::InvariantSwapResult;
 use anchor_spl::token::spl_token::state::Account;
 use decimal::*;
 use invariant_types::{
-    decimals::{Price, TokenAmount},
+    decimals::{Liquidity, Price, TokenAmount},
     log::get_tick_at_sqrt_price,
     math::{
-        compute_swap_step, cross_tick, get_closer_limit, get_max_tick, get_min_tick,
-        is_enough_amount_to_push_price,
+        compute_swap_step, cross_tick, cross_tick_no_fee_growth_update, get_closer_limit,
+        get_max_tick, get_min_tick, is_enough_amount_to_push_price,
     },
     structs::{Pool, Tick, Tickmap, TICK_CROSSES_PER_IX},
     MAX_VIRTUAL_CROSS,
 };
 use solana_program::pubkey::Pubkey;
 use std::any::Any;
+use tracing::trace;
 
 use router_lib::dex::{DexEdge, DexEdgeIdentifier};
 
@@ -182,27 +183,33 @@ impl InvariantEdge {
                 })?;
 
                 if initialized {
-                    // ticks should be sorted in the same order as the swap
-                    let tick = &mut match ticks.next() {
-                        Some(tick) => {
-                            if tick.index != tick_index {
-                                ticks_accounts_outdated = true;
-                                break;
-                            }
-                            used_ticks.push(tick.index);
+                    // tick to fallback to in case no tick is found
+                    let default_tick = Tick {
+                        index: tick_index,
+                        ..Default::default()
+                    };
+                    used_ticks.push(tick_index);
 
-                            *tick
+                    // ticks should be sorted in the same order as the swap
+                    let tick = &match ticks.next() {
+                        Some(tick) => {
+
+                            if tick.index != tick_index {
+                                trace!("Fallback tick {:?} for tickmap {:?} used", tick_index, pool.tickmap);
+                                default_tick
+                            } else {
+                                *tick
+                            }
                         }
                         None => {
-                            ticks_accounts_outdated = true;
-                            break;
+                            trace!("Fallback tick {:?} for tickmap {:?} used", tick_index, pool.tickmap);
+                            default_tick
                         }
                     };
 
                     // crossing tick
                     if !x_to_y || is_enough_amount_to_cross {
-                        let cross_tick_result = cross_tick(tick, pool);
-                        if cross_tick_result.is_err() {
+                        if cross_tick_no_fee_growth_update(tick, pool).is_err() {
                             global_insufficient_liquidity = true;
                             break;
                         }
@@ -256,10 +263,10 @@ impl InvariantEdge {
 
         // TODO: split into multiple errors or move up
         if remaining_amount.0 != 0 || ticks_accounts_outdated || global_insufficient_liquidity {
-            return Err("Insuffcient liquidity".into());    
+            return Err("Insuffcient liquidity".into());
         }
 
-        // TODO remove unused fields         
+        // TODO remove unused fields
         Ok(InvariantSwapResult {
             in_amount: total_amount_in.0,
             out_amount: total_amount_out.0,
