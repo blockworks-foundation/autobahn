@@ -370,15 +370,18 @@ async fn simulate_cu_usage(
     match sim {
         Ok(sim) => {
             log::debug!("{:?}", sim.result);
-            if sim.result.is_some() && sim.result.unwrap().is_ok() {
-                let simulation_details = sim.simulation_details.unwrap();
-                let cus = simulation_details.units_consumed;
+            let simulation_details = sim.simulation_details.unwrap();
+            let cus = simulation_details.units_consumed;
+            if sim.result.is_some() && sim.result.clone().unwrap().is_ok() {
                 log::debug!("units consumed : {}", cus);
-                log::debug!("----logs");
-                for log in simulation_details.logs {
-                    log::debug!("{log:?}");
-                }
                 Some(cus)
+            } else if sim.result.is_some() && sim.result.clone().unwrap().is_err() {
+                println!("simluation failed : {:?}", sim.result.unwrap());
+                println!("----logs");
+                for log in simulation_details.logs {
+                    println!("{log:?}");
+                }
+                None
             } else {
                 None
             }
