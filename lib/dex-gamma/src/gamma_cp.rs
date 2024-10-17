@@ -34,6 +34,10 @@ pub struct GammaCpDex {
     pub needed_accounts: HashSet<Pubkey>,
 }
 
+fn get_gamma_authority() -> Pubkey {
+    Pubkey::find_program_address(&[&gamma::AUTH_SEED.as_bytes()], &gamma::id()).0
+}
+
 #[async_trait]
 impl DexInterface for GammaCpDex {
     async fn initialize(
@@ -129,14 +133,13 @@ impl DexInterface for GammaCpDex {
     }
 
     fn subscription_mode(&self) -> DexSubscriptionMode {
+        let gamma_authority = get_gamma_authority();
         DexSubscriptionMode::Mixed(MixedDexSubscription {
             accounts: Default::default(),
             programs: HashSet::from([Gamma::id()]),
-            token_accounts_for_owner: HashSet::from([Pubkey::from_str(
-                // TODO: replace with gamma signer authority
-                "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL", // ?? what is this.
-            )
-            .unwrap()]),
+            // Only subscription to token accounts owned by gamma authority is
+            // enough as this will always update when any swap happens on gamma
+            token_accounts_for_owner: HashSet::from([gamma_authority]),
         })
     }
 
