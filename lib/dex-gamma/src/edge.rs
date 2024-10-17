@@ -6,7 +6,7 @@ use anchor_spl::token_2022::spl_token_2022::extension::{
 };
 use anchor_spl::token_2022::spl_token_2022::state::Mint;
 use gamma::curve::{CurveCalculator, TradeDirection};
-use gamma::states::{AmmConfig, Observation, ObservationState, PoolState, PoolStatusBitIndex};
+use gamma::states::{AmmConfig, ObservationState, PoolState, PoolStatusBitIndex};
 use mango_feeds_connector::chain_data::AccountData;
 use solana_program::clock::Clock;
 use solana_program::pubkey::Pubkey;
@@ -57,6 +57,7 @@ pub struct GammaEdge {
     pub vault_1_amount: u64,
     pub mint_0: Option<TransferFeeConfig>,
     pub mint_1: Option<TransferFeeConfig>,
+    pub observation_state: ObservationState,
 }
 
 impl DexEdge for GammaEdge {
@@ -84,6 +85,7 @@ pub(crate) fn get_transfer_config(
 pub fn swap_base_input(
     pool: &PoolState,
     amm_config: &AmmConfig,
+    observation_state: &ObservationState,
     input_vault_key: Pubkey,
     input_vault_amount: u64,
     input_mint: &Option<TransferFeeConfig>,
@@ -147,7 +149,7 @@ pub fn swap_base_input(
             amm_config.protocol_fee_rate,
             amm_config.fund_fee_rate,
             block_timestamp,
-            &ObservationState::default(),
+            &observation_state,
             trade_direction,
         ) else {
             anyhow::bail!("Can't swap");
@@ -178,6 +180,7 @@ pub fn swap_base_input(
 pub fn swap_base_output(
     pool: &PoolState,
     amm_config: &AmmConfig,
+    observation_state: &ObservationState,
     input_vault_key: Pubkey,
     input_vault_amount: u64,
     _input_mint: &Option<TransferFeeConfig>,
@@ -246,7 +249,7 @@ pub fn swap_base_output(
             amm_config.protocol_fee_rate,
             amm_config.fund_fee_rate,
             block_timestamp,
-            &ObservationState::default(),
+            observation_state,
             trade_direction,
         ) else {
             anyhow::bail!("Can't swap");

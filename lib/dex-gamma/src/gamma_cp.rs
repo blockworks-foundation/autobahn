@@ -7,7 +7,7 @@ use anchor_spl::token_2022::spl_token_2022;
 use anyhow::Context;
 use async_trait::async_trait;
 use gamma::program::Gamma;
-use gamma::states::{block_timestamp, AmmConfig, PoolState, PoolStatusBitIndex};
+use gamma::states::{block_timestamp, AmmConfig, ObservationState, PoolState, PoolStatusBitIndex};
 use itertools::Itertools;
 use router_feed_lib::router_rpc_client::{RouterRpcClient, RouterRpcClientTrait};
 use router_lib::dex::{
@@ -133,6 +133,7 @@ impl DexInterface for GammaCpDex {
             accounts: Default::default(),
             programs: HashSet::from([Gamma::id()]),
             token_accounts_for_owner: HashSet::from([Pubkey::from_str(
+                // TODO: replace with gamma signer authority
                 "GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL", // ?? what is this.
             )
             .unwrap()]),
@@ -170,6 +171,10 @@ impl DexInterface for GammaCpDex {
         let transfer_0_fee = crate::edge::get_transfer_config(&mint_0_account)?;
         let transfer_1_fee = crate::edge::get_transfer_config(&mint_1_account)?;
 
+        let observation_state_account = chain_data.account(&pool.observation_key)?;
+        let observation_state =
+            ObservationState::try_deserialize(&mut observation_state_account.account.data())?;
+
         Ok(Arc::new(GammaEdge {
             pool,
             config,
@@ -177,6 +182,7 @@ impl DexInterface for GammaCpDex {
             vault_1_amount: vault_1.amount,
             mint_0: transfer_0_fee,
             mint_1: transfer_1_fee,
+            observation_state,
         }))
     }
 
@@ -214,6 +220,7 @@ impl DexInterface for GammaCpDex {
             let result = swap_base_input(
                 &edge.pool,
                 &edge.config,
+                &edge.observation_state,
                 edge.pool.token_0_vault,
                 edge.vault_0_amount,
                 &edge.mint_0,
@@ -234,6 +241,7 @@ impl DexInterface for GammaCpDex {
             let result = swap_base_input(
                 &edge.pool,
                 &edge.config,
+                &edge.observation_state,
                 edge.pool.token_1_vault,
                 edge.vault_1_amount,
                 &edge.mint_1,
@@ -308,13 +316,11 @@ impl DexInterface for GammaCpDex {
             });
         }
 
-        // let clock = chain_data.account(&Clock::id()).context("read clock")?;
-        // let now_ts = clock.account.deserialize_data::<Clock>()?.unix_timestamp as u64;
-
         let quote = if id.is_a_to_b {
             let result = swap_base_output(
                 &edge.pool,
                 &edge.config,
+                &edge.observation_state,
                 edge.pool.token_0_vault,
                 edge.vault_0_amount,
                 &edge.mint_0,
@@ -335,6 +341,7 @@ impl DexInterface for GammaCpDex {
             let result = swap_base_output(
                 &edge.pool,
                 &edge.config,
+                &edge.observation_state,
                 edge.pool.token_1_vault,
                 edge.vault_1_amount,
                 &edge.mint_1,
