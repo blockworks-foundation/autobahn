@@ -8,7 +8,7 @@ use invariant_types::{
         compute_swap_step, cross_tick, cross_tick_no_fee_growth_update, get_closer_limit,
         get_max_tick, get_min_tick, is_enough_amount_to_push_price,
     },
-    structs::{Pool, Tick, Tickmap, TICK_CROSSES_PER_IX},
+    structs::{Pool, Tick, Tickmap, TickmapView, TICK_CROSSES_PER_IX},
     MAX_VIRTUAL_CROSS,
 };
 use solana_program::pubkey::Pubkey;
@@ -67,7 +67,7 @@ pub struct InvariantEdge {
     pub ticks: Vec<Tick>,
     pub pool: Pool,
     // TODO: possibly remove and use raw data with bytemuck?
-    pub tickmap: Tickmap,
+    pub tickmap: TickmapView,
 }
 
 #[derive(Debug, Default)]
@@ -92,10 +92,9 @@ impl InvariantEdge {
 
         let mut pool = self.pool.clone();
         let tickmap = &self.tickmap;
-        let mut ticks = self.ticks.to_vec();
+        let ticks = self.ticks.to_vec();
         let starting_sqrt_price = pool.sqrt_price;
-
-        let mut ticks = ticks.iter_mut();
+        let current_tick_index = pool.current_tick_index;
         let pool = &mut pool;
 
         let (mut remaining_amount, mut total_amount_in, mut total_amount_out, mut total_fee_amount) = (
@@ -110,6 +109,21 @@ impl InvariantEdge {
             mut global_insufficient_liquidity,
             mut ticks_accounts_outdated,
         ) = (Vec::new(), 0u16, false, false);
+
+        let mut current_tick_array_index = 0;
+        while current_tick_array_index < ticks.len() {
+            let index = ticks[current_tick_array_index].index;
+            let skip = if x_to_y {
+                index > current_tick_index
+            } else {
+                index <= current_tick_index
+            };
+            if skip {
+                current_tick_array_index += 1;
+            } else {
+                break;
+            }
+        }
 
         while !remaining_amount.is_zero() {
             let (swap_limit, limiting_tick) = match get_closer_limit(
@@ -184,27 +198,23 @@ impl InvariantEdge {
 
                 if initialized {
                     // tick to fallback to in case no tick is found
+                    used_ticks.push(tick_index);
                     let default_tick = Tick {
                         index: tick_index,
                         ..Default::default()
                     };
-                    used_ticks.push(tick_index);
 
                     // ticks should be sorted in the same order as the swap
-                    let tick = &match ticks.next() {
+                    let tick = &match ticks.get(current_tick_array_index) {
                         Some(tick) => {
-
                             if tick.index != tick_index {
-                                trace!("Fallback tick {:?} for tickmap {:?} used", tick_index, pool.tickmap);
                                 default_tick
                             } else {
+                                current_tick_array_index += 1;
                                 *tick
                             }
                         }
-                        None => {
-                            trace!("Fallback tick {:?} for tickmap {:?} used", tick_index, pool.tickmap);
-                            default_tick
-                        }
+                        None => default_tick,
                     };
 
                     // crossing tick

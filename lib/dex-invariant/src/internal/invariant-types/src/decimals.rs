@@ -52,11 +52,11 @@ pub struct TokenAmount(pub u64);
 
 impl FeeGrowth {
     pub fn unchecked_add(self, other: FeeGrowth) -> FeeGrowth {
-        FeeGrowth::new(self.get() + other.get())
+        FeeGrowth::new(self.get().wrapping_add(other.get()))
     }
 
     pub fn unchecked_sub(self, other: FeeGrowth) -> FeeGrowth {
-        FeeGrowth::new(self.get() - other.get())
+        FeeGrowth::new(self.get().wrapping_sub(other.get()))
     }
 
     pub fn from_fee(liquidity: Liquidity, fee: TokenAmount) -> Self {
@@ -91,11 +91,11 @@ impl FeeGrowth {
 
 impl FixedPoint {
     pub fn unchecked_add(self, other: FixedPoint) -> FixedPoint {
-        FixedPoint::new(self.get() + other.get())
+        FixedPoint::new(self.get().wrapping_sub(other.get()))
     }
 
     pub fn unchecked_sub(self, other: FixedPoint) -> FixedPoint {
-        FixedPoint::new(self.get() - other.get())
+        FixedPoint::new(self.get().wrapping_sub(other.get()))
     }
 }
 

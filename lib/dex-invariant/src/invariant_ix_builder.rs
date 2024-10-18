@@ -29,19 +29,17 @@ pub fn build_swap_ix(
     );
 
     let sqrt_price_limit = if id.x_to_y {
-        get_min_sqrt_price(edge.pool.tick_spacing).map_err(|e| anyhow::format_err!(e.get().0))?
+        get_min_sqrt_price(edge.pool.tick_spacing)?
     } else {
-        get_max_sqrt_price(edge.pool.tick_spacing).map_err(|e| anyhow::format_err!(e.get().0))?
+        get_max_sqrt_price(edge.pool.tick_spacing)?
     };
 
-    let invariant_swap_result = &edge
-        .simulate_invariant_swap(&InvariantSimulationParams {
-            x_to_y: id.x_to_y,
-            in_amount,
-            sqrt_price_limit,
-            by_amount_in,
-        })
-        .unwrap();
+    let invariant_swap_result = &edge.simulate_invariant_swap(&InvariantSimulationParams {
+        x_to_y: id.x_to_y,
+        in_amount,
+        sqrt_price_limit,
+        by_amount_in,
+    }).map_err(|e| anyhow::format_err!(e))?;
     // let sqrt_price_limit = invariant_swap_result.ending_sqrt_price;
     if invariant_swap_result.is_not_enough_liquidity() {
         anyhow::bail!("Insufficient liquidity");
@@ -58,7 +56,7 @@ pub fn build_swap_ix(
     };
 
     let (swap_accounts, _x_to_y) =
-        InvariantSwapAccounts::from_pubkeys(edge, id.pool, &swap_params).unwrap();
+        InvariantSwapAccounts::from_pubkeys(edge, id.pool, &swap_params)?;
     let metas = swap_accounts.to_account_metas();
 
     let discriminator = &Sha256::digest(b"global:swap")[0..8];
@@ -82,7 +80,7 @@ pub fn build_swap_ix(
         out_pubkey: destination_account,
         out_mint: destination_mint,
         in_amount_offset: 9,
-        cu_estimate: Some(200_000),
+        cu_estimate: Some(120000), //p95
     };
 
     Ok(result)

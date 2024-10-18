@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, fmt::write};
 
 use anchor_lang::prelude::Pubkey;
 
@@ -20,6 +20,16 @@ impl TrackableError {
     pub const DIV: &'static str = "division overflow or division by zero";
     pub fn cast<T: ?Sized>() -> String {
         format!("conversion to {} type failed", std::any::type_name::<T>())
+    }
+}
+impl std::fmt::Display for TrackableError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invariant simulation error: {}", self.cause)
+    }
+}
+impl std::error::Error for TrackableError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None   
     }
 }
 

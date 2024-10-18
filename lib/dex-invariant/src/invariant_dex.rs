@@ -1,34 +1,34 @@
 use std::{
     collections::{HashMap, HashSet},
+    io::Read,
+    ops::{Deref, Index, IndexMut},
     sync::Arc,
 };
 
 use anchor_lang::{prelude::*, AnchorDeserialize};
 use anchor_spl::token::spl_token::state::Account;
-use anyhow::{bail, Error, Ok};
+use anyhow::{anyhow, bail, Error, Ok};
 use async_trait::async_trait;
 use invariant_types::{
     decimals::Price,
     math::{calculate_price_sqrt, get_max_tick, get_min_tick},
-    structs::{tick, FeeTier, Pool, Tick, Tickmap, TICKMAP_SIZE, TICK_LIMIT},
-    ANCHOR_DISCRIMINATOR_SIZE, MAX_SQRT_PRICE, MIN_SQRT_PRICE, TICK_SEED,
+    structs::{
+        tick, tick_to_position, FeeTier, Pool, Tick, Tickmap, TickmapView, MAX_TICK, TICKMAP_SIZE,
+        TICKS_BACK_COUNT, TICK_CROSSES_PER_IX, TICK_LIMIT, TICK_SEARCH_RANGE,
+    },
+    ANCHOR_DISCRIMINATOR_SIZE, MAX_VIRTUAL_CROSS, MIN_SQRT_PRICE, TICK_SEED,
 };
 use router_feed_lib::router_rpc_client::{RouterRpcClient, RouterRpcClientTrait};
 use router_lib::dex::{
-    AccountProviderView, DexEdge, DexEdgeIdentifier, DexInterface, DexSubscriptionMode,
-    MixedDexSubscription, Quote, SwapInstruction,
+    AccountProviderView, DexEdge, DexEdgeIdentifier, DexInterface, DexSubscriptionMode, Quote,
+    SwapInstruction,
 };
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::{
-    pubsub_client::ProgramSubscription,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
     rpc_filter::RpcFilterType,
 };
-use solana_sdk::{
-    account::ReadableAccount,
-    commitment_config::CommitmentConfig,
-    pubkey::Pubkey,
-};
+use solana_sdk::{account::ReadableAccount, pubkey::Pubkey};
 use tracing::info;
 
 use crate::{
@@ -36,18 +36,18 @@ use crate::{
     invariant_ix_builder::build_swap_ix,
 };
 
+const TICKMAP_VIEW_RANGE: i32 = TICK_SEARCH_RANGE
+    * (MAX_VIRTUAL_CROSS as i32 + TICK_CROSSES_PER_IX as i32 + TICKS_BACK_COUNT as i32);
+
 pub struct InvariantDex {
     pub edges: HashMap<Pubkey, Vec<Arc<dyn DexEdgeIdentifier>>>,
 }
 
+#[derive(Debug)]
 pub enum PriceDirection {
     UP,
     DOWN,
 }
-const ADDRESS_LIMIT: usize = 20; //amount of accounts that allows for two routes
-const CONST_SWAP_ACCOUNTS: usize = 10; //accounts always present during a swap
-const SKIPPED_ACCOUNTS: usize = 2; //accounts that are not included in accounts_needed() function (user output ATA and user wallet address)
-pub const TICK_CROSSES_PER_ROUTE_IX: usize = ADDRESS_LIMIT + SKIPPED_ACCOUNTS - CONST_SWAP_ACCOUNTS;
 
 impl InvariantDex {
     pub fn deserialize<T>(data: &[u8]) -> anyhow::Result<T>
@@ -58,7 +58,19 @@ impl InvariantDex {
             .map_err(|e| anyhow::anyhow!("Error deserializing account data: {:?}", e))
     }
 
-    fn extract_from_anchor_account(data: &[u8]) -> &[u8] {
+    pub fn deserialize_tickmap_view(
+        data: &[u8],
+        current_tick_index: i32,
+        tick_spacing: u16,
+        x_to_y: bool,
+    ) -> anyhow::Result<TickmapView>
+where {
+        let tickmap_data = Self::extract_from_anchor_account(&data);
+        TickmapView::from_slice(tickmap_data, current_tick_index, tick_spacing, x_to_y)
+            .map_err(|e| anyhow::anyhow!("Error deserializing tickmap {:?}", e))
+    }
+
+    pub fn extract_from_anchor_account(data: &[u8]) -> &[u8] {
         data.split_at(ANCHOR_DISCRIMINATOR_SIZE).1
     }
 
@@ -82,91 +94,133 @@ impl InvariantDex {
         pubkey
     }
 
-    pub fn get_ticks_addresses_around(
-        pool: Pool,
-        tickmap: Tickmap,
-        pool_address: Pubkey,
-    ) -> Vec<Pubkey> {
-        let above_indexes = Self::find_closest_tick_indexes(
-            &pool,
-            &tickmap,
-            TICK_CROSSES_PER_ROUTE_IX,
-            PriceDirection::UP,
-        );
-        let below_indexes = Self::find_closest_tick_indexes(
-            &pool,
-            &tickmap,
-            TICK_CROSSES_PER_ROUTE_IX,
-            PriceDirection::DOWN,
-        );
-        let all_indexes = [below_indexes, above_indexes].concat();
-
-        Self::tick_indexes_to_addresses(pool_address, &all_indexes)
-    }
-
     pub fn get_closest_ticks_addresses(
-        pool: Pool,
-        tickmap: Tickmap,
+        pool: &Pool,
+        tickmap: &TickmapView,
         pool_address: Pubkey,
         direction: PriceDirection,
-    ) -> Vec<Pubkey> {
-        let indexes =
-            Self::find_closest_tick_indexes(&pool, &tickmap, TICK_CROSSES_PER_ROUTE_IX, direction);
+    ) -> anyhow::Result<Vec<Pubkey>> {
+        let indexes = Self::find_closest_tick_indexes_2(
+            &pool,
+            &tickmap.bitmap.data,
+            TICK_CROSSES_PER_IX,
+            tickmap.bitmap.offset,
+            direction,
+        )?;
 
-        Self::tick_indexes_to_addresses(pool_address, &indexes)
+        Ok(Self::tick_indexes_to_addresses(pool_address, &indexes))
+    }
+
+    fn find_closest_tick_indexes_2(
+        pool: &Pool,
+        bitmap: &[u8],
+        amount_limit: usize,
+        chunk_offset: i32,
+        direction: PriceDirection,
+    ) -> anyhow::Result<Vec<i32>> {
+        let tick_spacing: i32 = pool.tick_spacing.into();
+        let current: i32 = pool.current_tick_index / tick_spacing + TICK_LIMIT - chunk_offset * 8;
+        let tickmap = bitmap;
+
+        let mut found: Vec<i32> = Vec::new();
+        if tickmap.len() != 0 {
+            let range = tickmap.len() as i32 * 8 - 1;
+
+            let (mut above, mut below, mut reached_limit) = (0 as i32, range, false);
+
+            let max = below;
+            let min = above;
+
+            let tick_offset = chunk_offset * 8;
+            while !reached_limit && found.len() < amount_limit {
+                match direction {
+                    PriceDirection::UP => {
+                        let value_above: u8 = tickmap[(above / 8) as usize] & (1 << (above % 8));
+                        if value_above != 0 {
+                            if above > current {
+                                found.push(above + tick_offset);
+                            } else if found.len() >= 1 {
+                                found[0] = above + tick_offset;
+                            } else {
+                                found.push(above + tick_offset);
+                            }
+                        }
+                        reached_limit = above >= max || found.len() >= amount_limit;
+                        above += 1;
+                    }
+                    PriceDirection::DOWN => {
+                        let value_below: u8 = tickmap[(below / 8) as usize] & (1 << (below % 8));
+                        if value_below != 0 {
+                            if below <= current {
+                                found.push(below + tick_offset);
+                            } else if found.len() >= 1 {
+                                found[0] = below + tick_offset;
+                            } else {
+                                found.push(below + tick_offset);
+                            }
+                        }
+                        reached_limit = below <= min || found.len() >= amount_limit;
+                        below -= 1;
+                    }
+                }
+            }
+        }
+        Ok(found
+            .iter()
+            .map(|i: &i32| (i - TICK_LIMIT) * tick_spacing)
+            .collect())
     }
 
     fn find_closest_tick_indexes(
         pool: &Pool,
-        tickmap: &Tickmap,
+        bitmap: &impl Index<usize, Output = u8>,
         amount_limit: usize,
+        offset: i32,
+        range_limit: Option<i32>,
         direction: PriceDirection,
-    ) -> Vec<i32> {
+    ) -> anyhow::Result<Vec<i32>> {
         let current: i32 = pool.current_tick_index;
         let tick_spacing: i32 = pool.tick_spacing.into();
-        let tickmap = tickmap.bitmap;
+        let tickmap = bitmap;
 
         if current % tick_spacing != 0 {
             panic!("Invalid arguments: can't find initialized ticks")
         }
         let mut found: Vec<i32> = Vec::new();
-        let current_index = current / tick_spacing + TICK_LIMIT;
-        let max_index = get_max_tick(pool.tick_spacing).unwrap() / tick_spacing + TICK_LIMIT;
+        let current_index = offset;
+
+        let max_index = get_max_tick(pool.tick_spacing)? / tick_spacing + TICK_LIMIT;
         let (mut above, mut below, mut reached_limit) =
             ((current_index + 1).min(max_index), current_index, false);
 
+        let range = range_limit.unwrap_or(TICKMAP_VIEW_RANGE);
+        let max = (above + range - 1).min(TICKMAP_SIZE);
+        let min = (below - range).max(0);
         while !reached_limit && found.len() < amount_limit {
             match direction {
                 PriceDirection::UP => {
-                    let value_above: u8 =
-                        *tickmap.get((above / 8) as usize).unwrap() & (1 << (above % 8));
+                    let value_above: u8 = tickmap[(above / 8) as usize] & (1 << (above % 8));
                     if value_above != 0 {
                         found.push(above);
                     }
-                    reached_limit = above >= TICKMAP_SIZE;
+                    reached_limit = above >= max || found.len() >= amount_limit;
                     above += 1;
                 }
                 PriceDirection::DOWN => {
-                    let value_below: u8 =
-                        *tickmap.get((below / 8) as usize).unwrap() & (1 << (below % 8));
+                    let value_below: u8 = tickmap[(below / 8) as usize] & (1 << (below % 8));
                     if value_below != 0 {
-                        found.insert(0, below);
+                        found.push(below);
                     }
-                    reached_limit = below <= 0;
+                    reached_limit = below <= min || found.len() >= amount_limit;
                     below -= 1;
                 }
             }
         }
 
-        if let PriceDirection::DOWN = direction {
-            // to avoid searching during the swap
-            found.reverse();
-        }
-
-        found
+        Ok(found
             .iter()
             .map(|i: &i32| (i - TICK_LIMIT) * tick_spacing)
-            .collect()
+            .collect())
     }
 
     fn load_edge(
@@ -175,20 +229,28 @@ impl InvariantDex {
     ) -> anyhow::Result<InvariantEdge> {
         let pool_account_data = chain_data.account(&id.pool)?;
         let pool = Self::deserialize::<Pool>(pool_account_data.account.data())?;
+
         let tickmap_account_data = chain_data.account(&pool.tickmap)?;
-        let tickmap = Self::deserialize::<Tickmap>(tickmap_account_data.account.data())?;
+        let tickmap = Self::deserialize_tickmap_view(
+            &tickmap_account_data.account.data(),
+            pool.current_tick_index,
+            pool.tick_spacing,
+            id.x_to_y,
+        )?;
 
         let price_direction = match id.x_to_y {
             true => PriceDirection::DOWN,
             false => PriceDirection::UP,
         };
 
-        let tick_pks = &Self::get_closest_ticks_addresses(pool, tickmap, id.pool, price_direction);
+        let tick_pks =
+            &Self::get_closest_ticks_addresses(&pool, &tickmap, id.pool, price_direction)?;
         let mut ticks = Vec::with_capacity(tick_pks.len());
 
         for tick_pk in tick_pks {
             let tick_data = chain_data.account(&tick_pk)?;
-            let tick = Self::deserialize::<Tick>(tick_data.account.data())?;
+            let tick =
+                Self::deserialize::<Tick>(tick_data.account.data()).unwrap_or(Default::default());
             ticks.push(tick)
         }
 
@@ -209,8 +271,8 @@ impl DexInterface for InvariantDex {
     where
         Self: Sized,
     {
-        let pools = fetch_invariant_accounts(rpc, crate::id()).await?;
-
+        let mut pools = fetch_invariant_accounts(rpc, crate::id()).await?;
+        pools.retain(|(_, p)| p.liquidity.v != 0);
         info!("Number of Invariant Pools: {:?}", pools.len());
 
         let edge_pairs: Vec<(Arc<InvariantEdgeIdentifier>, Arc<InvariantEdgeIdentifier>)> = pools
@@ -239,7 +301,7 @@ impl DexInterface for InvariantDex {
         let edges_per_pk = {
             let mut map = HashMap::new();
             let pools_with_edge_pairs = pools.iter().zip(tickmaps.iter()).zip(edge_pairs.iter());
-            for (((pool_pk, pool), (tickmap_pk, tickmap_acc)), (edge_x_to_y, edge_y_to_x)) in
+            for (((pool_pk, _pool), (tickmap_pk, _tickmap_acc)), (edge_x_to_y, edge_y_to_x)) in
                 pools_with_edge_pairs
             {
                 let entry: Vec<Arc<dyn DexEdgeIdentifier>> =
@@ -247,17 +309,11 @@ impl DexInterface for InvariantDex {
                 map.insert(*pool_pk, entry.clone());
                 map.insert(*tickmap_pk, entry.clone());
 
-                let tickmap = Self::deserialize(&tickmap_acc.data)?;
-                let indexes = Self::find_closest_tick_indexes(
-                    pool,
-                    &tickmap,
-                    TICKMAP_SIZE as usize,
-                    PriceDirection::UP,
-                );
-                for tick in indexes {
-                    map.insert(Self::tick_index_to_address(*pool_pk, tick), entry.clone());
-                }
+                // for tick in indexes {
+                //     map.insert(Self::tick_index_to_address(*pool_pk, tick), entry.clone());
+                // }
             }
+            dbg!("init done");
             map
         };
 
@@ -311,10 +367,12 @@ impl DexInterface for InvariantDex {
 
         let x_to_y = id.x_to_y;
         let sqrt_price_limit = if x_to_y {
-            calculate_price_sqrt(get_min_tick(edge.pool.tick_spacing).unwrap())
+            calculate_price_sqrt(get_min_tick(edge.pool.tick_spacing)?)
         } else {
-            calculate_price_sqrt(get_max_tick(edge.pool.tick_spacing).unwrap())
+            calculate_price_sqrt(get_max_tick(edge.pool.tick_spacing)?)
         };
+
+        dbg!("sim");
 
         let simulation = edge
             .simulate_invariant_swap(&InvariantSimulationParams {
@@ -324,6 +382,7 @@ impl DexInterface for InvariantDex {
                 by_amount_in: true,
             })
             .map_err(|e| anyhow::format_err!(e))?;
+        dbg!("quote");
 
         let fee_mint = if x_to_y { id.token_x } else { id.token_y };
 
@@ -384,9 +443,9 @@ impl DexInterface for InvariantDex {
 
         let x_to_y = id.x_to_y;
         let sqrt_price_limit = if x_to_y {
-            calculate_price_sqrt(get_min_tick(edge.pool.tick_spacing).unwrap())
+            calculate_price_sqrt(get_min_tick(edge.pool.tick_spacing)?)
         } else {
-            calculate_price_sqrt(get_max_tick(edge.pool.tick_spacing).unwrap())
+            calculate_price_sqrt(get_max_tick(edge.pool.tick_spacing)?)
         };
 
         let simulation = edge

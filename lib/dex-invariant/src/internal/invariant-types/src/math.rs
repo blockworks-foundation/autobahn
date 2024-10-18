@@ -1,4 +1,4 @@
-use crate::{err, from_result, function, location, ok_or_mark_trace, trace};
+use crate::{err, from_result, function, location, ok_or_mark_trace, structs::TickmapView, trace};
 use std::{cell::RefMut, convert::TryInto};
 
 use anchor_lang::*;
@@ -96,7 +96,7 @@ pub fn get_closer_limit(
     x_to_y: bool,
     current_tick: i32, // tick already scaled by tick_spacing
     tick_spacing: u16,
-    tickmap: &Tickmap,
+    tickmap: &TickmapView,
 ) -> Result<(Price, Option<(i32, bool)>)> {
     // find initalized tick (None also for virtual tick limiated by search scope)
     let closes_tick_index = if x_to_y {
@@ -503,7 +503,7 @@ pub fn is_enough_amount_to_push_price(
     Ok(current_price_sqrt.ne(&next_price_sqrt))
 }
 
-pub fn cross_tick(tick: &mut Tick, pool: &mut Pool) -> Result<()> {
+pub fn cross_tick(tick: &mut RefMut<Tick>, pool: &mut Pool) -> Result<()> {
     tick.fee_growth_outside_x = pool
         .fee_growth_global_x
         .unchecked_sub(tick.fee_growth_outside_x);
