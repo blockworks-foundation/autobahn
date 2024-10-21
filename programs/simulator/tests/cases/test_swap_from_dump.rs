@@ -157,7 +157,7 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
         .await?;
 
         for meta in &instruction.accounts {
-            let Ok(Some(account)) = ctx.banks_client.get_account(meta.pubkey).await else  {
+            let Ok(Some(account)) = ctx.banks_client.get_account(meta.pubkey).await else {
                 log::warn!("missing account : {:?}", meta.pubkey);
                 continue;
             };
@@ -168,7 +168,6 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
             // let base64 = base64::encode(result);
             // log::debug!("account : {:?} dump : {base64:?} executable : {}", meta.pubkey, account.executable());
         }
-    
 
         if let Some(cus) = simulate_cu_usage(&mut ctx, &wallet, &instruction).await {
             cus_required.push(cus);
@@ -346,17 +345,19 @@ async fn initialize_accounts(
     program_test: &mut ProgramTest,
     dump: &ExecutionDump,
 ) -> anyhow::Result<()> {
-
-    println!("initializing accounts : {:?}", dump.accounts.len() );
+    println!("initializing accounts : {:?}", dump.accounts.len());
     for (pk, account) in &dump.accounts {
         println!("Setting data for {}", pk);
-        program_test.add_account(*pk, solana_sdk::account::Account {
-            lamports: account.lamports(),
-            owner: *account.owner(),
-            data: account.data().to_vec(),
-            rent_epoch: account.rent_epoch(),
-            executable: account.executable(),
-        });
+        program_test.add_account(
+            *pk,
+            solana_sdk::account::Account {
+                lamports: account.lamports(),
+                owner: *account.owner(),
+                data: account.data().to_vec(),
+                rent_epoch: account.rent_epoch(),
+                executable: account.executable(),
+            },
+        );
     }
 
     Ok(())
@@ -384,10 +385,10 @@ async fn simulate_cu_usage(
                 log::debug!("units consumed : {}", cus);
                 Some(cus)
             } else if sim.result.is_some() && sim.result.clone().unwrap().is_err() {
-                println!("simluation failed : {:?}", sim.result.unwrap());
-                println!("----logs");
+                log::debug!("simluation failed : {:?}", sim.result.unwrap());
+                log::debug!("----logs");
                 for log in simulation_details.logs {
-                    println!("{log:?}");
+                    log::debug!("{log:?}");
                 }
                 None
             } else {
@@ -526,7 +527,9 @@ fn create_wallet(ctx: &mut ProgramTestContext, address: Pubkey) {
     );
 }
 
-async fn setup_test_chain(programs: &Vec<Pubkey>, clock: &Clock, 
+async fn setup_test_chain(
+    programs: &Vec<Pubkey>,
+    clock: &Clock,
     dump: &ExecutionDump,
 ) -> ProgramTestContext {
     // We need to intercept logs to capture program log output
@@ -546,13 +549,13 @@ async fn setup_test_chain(programs: &Vec<Pubkey>, clock: &Clock,
     let mut program_test = ProgramTest::default();
 
     initialize_accounts(&mut program_test, dump).await.unwrap();
-    
+
     program_test.prefer_bpf(true);
     for &key in programs {
         program_test.add_program(key.to_string().as_str(), key, None);
     }
     program_test.add_program("autobahn_executor", autobahn_executor::ID, None);
-    
+
     // TODO: make this dynamic based on routes
     program_test.set_compute_max_units(1_400_000);
 

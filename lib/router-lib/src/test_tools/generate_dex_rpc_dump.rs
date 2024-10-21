@@ -11,16 +11,16 @@ use router_test_lib::{execution_dump, serialize};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use solana_sdk::account::ReadableAccount;
+use solana_sdk::bpf_loader_upgradeable::UpgradeableLoaderState;
 use solana_sdk::clock::Clock;
 use solana_sdk::config::program;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::sysvar::SysvarId;
-use solana_sdk::bpf_loader_upgradeable::UpgradeableLoaderState;
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, error};
-use std::str::FromStr;
 
 pub async fn run_dump_mainnet_data(
     dex: Arc<dyn DexInterface>,
@@ -133,7 +133,10 @@ pub async fn run_dump_mainnet_data_with_custom_amount(
         // get buffer for upgradable programs
         if account.owner == solana_sdk::bpf_loader_upgradeable::ID {
             let state = bincode::deserialize::<UpgradeableLoaderState>(&account.data).unwrap();
-            if let UpgradeableLoaderState::Program { programdata_address } = state {
+            if let UpgradeableLoaderState::Program {
+                programdata_address,
+            } = state
+            {
                 rpc_client.get_account(&programdata_address).await?;
             }
         }
@@ -329,13 +332,20 @@ pub async fn run_dump_swap_ix_with_custom_amount(
     for program in dump.programs.clone() {
         let program_account = account_provider.account(&program)?;
 
-        dump.accounts.insert(program, program_account.account.clone());
+        dump.accounts
+            .insert(program, program_account.account.clone());
         // use downloaded buffers for the upgradable programs
         if *program_account.account.owner() == solana_sdk::bpf_loader_upgradeable::ID {
-            let state = bincode::deserialize::<UpgradeableLoaderState>(program_account.account.data()).unwrap();
-            if let UpgradeableLoaderState::Program { programdata_address } = state {
+            let state =
+                bincode::deserialize::<UpgradeableLoaderState>(program_account.account.data())
+                    .unwrap();
+            if let UpgradeableLoaderState::Program {
+                programdata_address,
+            } = state
+            {
                 let program_data_account = account_provider.account(&programdata_address)?;
-                dump.accounts.insert(programdata_address, program_data_account.account);
+                dump.accounts
+                    .insert(programdata_address, program_data_account.account);
             }
         }
     }
