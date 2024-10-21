@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde_derive::{Deserialize, Serialize};
 use solana_sdk::account::AccountSharedData;
@@ -17,7 +17,7 @@ pub struct ExecutionItem {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ExecutionDump {
     pub wallet_keypair: String,
-    pub programs: Vec<Pubkey>,
+    pub programs: HashSet<Pubkey>,
     pub cache: Vec<ExecutionItem>,
     pub accounts: HashMap<Pubkey, AccountSharedData>,
 }

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use jupiter_amm_interface::{Amm, QuoteParams, SwapMode};
@@ -106,6 +107,7 @@ impl DexInterface for InfinityDex {
 
     fn program_ids(&self) -> HashSet<Pubkey> {
         [
+            Pubkey::from_str("5ocnV1qiCgaQR8Jb8xWnVbApfaygJ8tNoZfgPwsgx9kx").unwrap(),
             s_controller_lib::program::ID,
             sanctum_spl_multi_stake_pool_program::ID,
             sanctum_spl_stake_pool_program::ID,
