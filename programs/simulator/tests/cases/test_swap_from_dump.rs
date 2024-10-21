@@ -23,6 +23,8 @@ use spl_token_2022::state::AccountState as AccountState2022;
 use std::collections::HashMap;
 use std::process::exit;
 use std::str::FromStr;
+// use sha2::Sha256;
+// use sha2::Digest;
 
 struct TestLogSyscallStubs;
 impl SyscallStubs for TestLogSyscallStubs {
@@ -121,16 +123,18 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
             continue;
         }
 
-        let mut ctx = setup_test_chain(&data.programs, &clock).await;
+        let instruction = deserialize_instruction(&quote.instruction)?;
+
+        let programs = data.programs.iter().copied().collect();
+        let mut ctx = setup_test_chain(&programs, &clock, &data).await;
 
         create_wallet(&mut ctx, wallet.pubkey());
 
         let initial_in_balance = quote.input_amount * 2;
         let initial_out_balance = 1_000_000;
 
-        let instruction = deserialize_instruction(&quote.instruction)?;
-
-        initialize_instruction_accounts(&mut ctx, &data, &instruction).await?;
+        // let slot = ctx.banks_client.get_root_slot().await.unwrap();
+        // ctx.warp_to_slot(slot+3).unwrap();
 
         let input_mint_is_2022 = is_2022(&data.accounts, quote.input_mint).await;
         let output_mint_is_2022 = is_2022(&data.accounts, quote.output_mint).await;
@@ -151,6 +155,19 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
             output_mint_is_2022,
         )
         .await?;
+
+        for meta in &instruction.accounts {
+            let Ok(Some(account)) = ctx.banks_client.get_account(meta.pubkey).await else {
+                log::warn!("missing account : {:?}", meta.pubkey);
+                continue;
+            };
+            // keep code to test hashses
+            // let mut hasher = Sha256::new();
+            // hasher.update(account.data());
+            // let result = hasher.finalize();
+            // let base64 = base64::encode(result);
+            // log::debug!("account : {:?} dump : {base64:?} executable : {}", meta.pubkey, account.executable());
+        }
 
         if let Some(cus) = simulate_cu_usage(&mut ctx, &wallet, &instruction).await {
             cus_required.push(cus);
@@ -324,31 +341,23 @@ fn deserialize_instruction(swap_ix: &Vec<u8>) -> anyhow::Result<Instruction> {
     Ok(instruction)
 }
 
-async fn initialize_instruction_accounts(
-    ctx: &mut ProgramTestContext,
+async fn initialize_accounts(
+    program_test: &mut ProgramTest,
     dump: &ExecutionDump,
-    instruction: &Instruction,
 ) -> anyhow::Result<()> {
-    for account_meta in &instruction.accounts {
-        if dump.programs.contains(&account_meta.pubkey) {
-            continue;
-        }
-        if let Some(account) = dump.accounts.get(&account_meta.pubkey) {
-            if account.executable() {
-                continue;
-            }
-            debug!("Setting data for {}", account_meta.pubkey);
-            ctx.set_account(&account_meta.pubkey, account);
-        } else {
-            if ctx
-                .banks_client
-                .get_account(account_meta.pubkey)
-                .await?
-                .is_none()
-            {
-                debug!("Missing data for {}", account_meta.pubkey); // Can happen for empty oracle account...
-            }
-        }
+    println!("initializing accounts : {:?}", dump.accounts.len());
+    for (pk, account) in &dump.accounts {
+        println!("Setting data for {}", pk);
+        program_test.add_account(
+            *pk,
+            solana_sdk::account::Account {
+                lamports: account.lamports(),
+                owner: *account.owner(),
+                data: account.data().to_vec(),
+                rent_epoch: account.rent_epoch(),
+                executable: account.executable(),
+            },
+        );
     }
 
     Ok(())
@@ -370,15 +379,18 @@ async fn simulate_cu_usage(
     match sim {
         Ok(sim) => {
             log::debug!("{:?}", sim.result);
-            if sim.result.is_some() && sim.result.unwrap().is_ok() {
-                let simulation_details = sim.simulation_details.unwrap();
-                let cus = simulation_details.units_consumed;
+            let simulation_details = sim.simulation_details.unwrap();
+            let cus = simulation_details.units_consumed;
+            if sim.result.is_some() && sim.result.clone().unwrap().is_ok() {
                 log::debug!("units consumed : {}", cus);
+                Some(cus)
+            } else if sim.result.is_some() && sim.result.clone().unwrap().is_err() {
+                log::debug!("simluation failed : {:?}", sim.result.unwrap());
                 log::debug!("----logs");
                 for log in simulation_details.logs {
                     log::debug!("{log:?}");
                 }
-                Some(cus)
+                None
             } else {
                 None
             }
@@ -515,7 +527,11 @@ fn create_wallet(ctx: &mut ProgramTestContext, address: Pubkey) {
     );
 }
 
-async fn setup_test_chain(programs: &Vec<Pubkey>, clock: &Clock) -> ProgramTestContext {
+async fn setup_test_chain(
+    programs: &Vec<Pubkey>,
+    clock: &Clock,
+    dump: &ExecutionDump,
+) -> ProgramTestContext {
     // We need to intercept logs to capture program log output
     let log_filter = "solana_rbpf=trace,\
                     solana_runtime::message_processor=debug,\
@@ -531,6 +547,10 @@ async fn setup_test_chain(programs: &Vec<Pubkey>, clock: &Clock) -> ProgramTestC
     let _ = log::set_boxed_logger(Box::new(env_logger));
 
     let mut program_test = ProgramTest::default();
+
+    initialize_accounts(&mut program_test, dump).await.unwrap();
+
+    program_test.prefer_bpf(true);
     for &key in programs {
         program_test.add_program(key.to_string().as_str(), key, None);
     }
@@ -539,12 +559,14 @@ async fn setup_test_chain(programs: &Vec<Pubkey>, clock: &Clock) -> ProgramTestC
     // TODO: make this dynamic based on routes
     program_test.set_compute_max_units(1_400_000);
 
-    let program_test_context = program_test.start_with_context().await;
+    let mut program_test_context = program_test.start_with_context().await;
 
     // Set clock
     program_test_context.set_sysvar(clock);
 
     info!("Setting clock to: {}", clock.unix_timestamp);
+
+    program_test_context.warp_to_slot(40).unwrap();
 
     program_test_context
 }
