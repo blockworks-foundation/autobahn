@@ -1,27 +1,25 @@
-use anyhow::{Context, Error};
-use bonfida_test_utils::error::TestError;
-use bonfida_test_utils::ProgramTestContextExt;
-use log::{debug, error, info, warn};
+use anyhow::Error;
+use litesvm::LiteSVM;
+use log::{error, info, warn};
 use router_test_lib::execution_dump::{ExecutionDump, ExecutionItem};
 use router_test_lib::{execution_dump, serialize};
-use solana_program::clock::{Clock, Epoch};
+use solana_program::clock::Clock;
 use solana_program::instruction::Instruction;
 use solana_program::program_pack::Pack;
 use solana_program::program_stubs::{set_syscall_stubs, SyscallStubs};
 use solana_program::pubkey::Pubkey;
 use solana_program::sysvar::SysvarId;
-use solana_program_test::BanksClientError;
-use solana_program_test::{ProgramTest, ProgramTestContext};
 use solana_sdk::account::{Account, AccountSharedData, ReadableAccount};
-use solana_sdk::epoch_info::EpochInfo;
+use solana_sdk::bpf_loader_upgradeable::UpgradeableLoaderState;
+use solana_sdk::message::{Message, VersionedMessage};
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
-use solana_sdk::transaction::Transaction;
+use solana_sdk::transaction::VersionedTransaction;
 use spl_associated_token_account::get_associated_token_address;
 use spl_token::state::AccountState;
 use spl_token_2022::state::AccountState as AccountState2022;
 use std::collections::HashMap;
-use std::process::exit;
+use std::path::PathBuf;
 use std::str::FromStr;
 // use sha2::Sha256;
 // use sha2::Digest;
@@ -79,7 +77,7 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
     let mut stop_at = u32::MAX;
     let skip_ixs_index = vec![];
 
-    let mut run_lot_size = option_env!("RUN_LOT_SIZE")
+    let run_lot_size = option_env!("RUN_LOT_SIZE")
         .map(|x| u32::from_str(x).unwrap_or(500))
         .unwrap_or(500);
 
@@ -126,7 +124,7 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
         let instruction = deserialize_instruction(&quote.instruction)?;
 
         let programs = data.programs.iter().copied().collect();
-        let mut ctx = setup_test_chain(&programs, &clock, &data).await;
+        let mut ctx = setup_test_chain(&programs, &clock, &data, &instruction.program_id)?;
 
         create_wallet(&mut ctx, wallet.pubkey());
 
@@ -157,7 +155,7 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
         .await?;
 
         for meta in &instruction.accounts {
-            let Ok(Some(account)) = ctx.banks_client.get_account(meta.pubkey).await else {
+            let Some(_account) = ctx.get_account(&meta.pubkey) else {
                 log::warn!("missing account : {:?}", meta.pubkey);
                 continue;
             };
@@ -278,7 +276,7 @@ async fn debug_print_ix(
     success: &mut i32,
     index: &mut u32,
     quote: &ExecutionItem,
-    ctx: &mut ProgramTestContext,
+    ctx: &mut LiteSVM,
     instruction: &Instruction,
     input_mint_is_2022: bool,
     output_mint_is_2022: bool,
@@ -310,13 +308,8 @@ async fn debug_print_ix(
 
     for acc in &instruction.accounts {
         let account = ctx
-            .banks_client
-            .get_account(acc.pubkey)
-            .await
-            .map(|x| {
-                x.map(|y| (y.executable, y.owner.to_string()))
-                    .unwrap_or((false, "???".to_string()))
-            })
+            .get_account(&acc.pubkey)
+            .map(|x| (x.executable, x.owner.to_string()))
             .unwrap_or((false, "???".to_string()));
 
         warn!(
@@ -341,14 +334,54 @@ fn deserialize_instruction(swap_ix: &Vec<u8>) -> anyhow::Result<Instruction> {
     Ok(instruction)
 }
 
-async fn initialize_accounts(
-    program_test: &mut ProgramTest,
+fn initialize_accounts(
+    program_test: &mut LiteSVM,
     dump: &ExecutionDump,
+    instruction_program: &Pubkey,
 ) -> anyhow::Result<()> {
-    println!("initializing accounts : {:?}", dump.accounts.len());
-    for (pk, account) in &dump.accounts {
-        println!("Setting data for {}", pk);
-        program_test.add_account(
+    log::debug!("initializing accounts : {:?}", dump.accounts.len());
+    let accounts_to_load = dump.accounts.clone();
+    for (pk, account) in &accounts_to_load {
+        if *pk == *instruction_program {
+            continue;
+        }
+        if *account.owner() == solana_sdk::bpf_loader_upgradeable::ID {
+            log::debug!("{pk:?} has upgradable loader");
+            let state = bincode::deserialize::<UpgradeableLoaderState>(&account.data()).unwrap();
+            if let UpgradeableLoaderState::Program {
+                programdata_address,
+            } = state
+            {
+                // load buffer accounts first
+                match accounts_to_load.get(&programdata_address) {
+                    Some(program_buffer) => {
+                        log::debug!("loading buffer:  {programdata_address:?}");
+                        program_test.set_account(
+                            programdata_address,
+                            solana_sdk::account::Account {
+                                lamports: program_buffer.lamports(),
+                                owner: *program_buffer.owner(),
+                                data: program_buffer.data().to_vec(),
+                                rent_epoch: program_buffer.rent_epoch(),
+                                executable: program_buffer.executable(),
+                            },
+                        )?;
+                    }
+                    None => {
+                        error!("{programdata_address:?} is not there");
+                    }
+                }
+            }
+        }
+        log::debug!(
+            "Setting data for {} with owner {} and is executable {}",
+            pk,
+            account.owner(),
+            account.executable()
+        );
+
+        log::debug!("Setting data for {}", pk);
+        program_test.set_account(
             *pk,
             solana_sdk::account::Account {
                 lamports: account.lamports(),
@@ -357,93 +390,84 @@ async fn initialize_accounts(
                 rent_epoch: account.rent_epoch(),
                 executable: account.executable(),
             },
-        );
+        )?;
     }
 
     Ok(())
 }
 
 async fn simulate_cu_usage(
-    ctx: &mut ProgramTestContext,
+    ctx: &mut LiteSVM,
     owner: &Keypair,
     instruction: &Instruction,
 ) -> Option<u64> {
-    let mut transaction =
-        Transaction::new_with_payer(&[instruction.clone()], Some(&ctx.payer.pubkey()));
+    let tx = VersionedTransaction::try_new(
+        VersionedMessage::Legacy(Message::new(&[instruction.clone()], Some(&owner.pubkey()))),
+        &[owner],
+    )
+    .unwrap();
 
-    transaction.sign(&[&ctx.payer, owner], ctx.last_blockhash);
-    let sim = ctx
-        .banks_client
-        .simulate_transaction(transaction.clone())
-        .await;
+    let sim = ctx.simulate_transaction(tx);
     match sim {
         Ok(sim) => {
-            log::debug!("{:?}", sim.result);
-            let simulation_details = sim.simulation_details.unwrap();
-            let cus = simulation_details.units_consumed;
-            if sim.result.is_some() && sim.result.clone().unwrap().is_ok() {
-                log::debug!("units consumed : {}", cus);
+            let cus = sim.compute_units_consumed;
+            log::debug!("----logs");
+            for log in sim.logs {
+                log::debug!("{log:?}");
+            }
+            if cus > 0 {
                 Some(cus)
-            } else if sim.result.is_some() && sim.result.clone().unwrap().is_err() {
-                log::debug!("simluation failed : {:?}", sim.result.unwrap());
-                log::debug!("----logs");
-                for log in simulation_details.logs {
-                    log::debug!("{log:?}");
-                }
-                None
             } else {
                 None
             }
         }
         Err(e) => {
-            log::warn!("Error simulating : {}", e);
+            log::warn!("Error simulating : {:?}", e);
             None
         }
     }
 }
 
-async fn swap(
-    ctx: &mut ProgramTestContext,
-    owner: &Keypair,
-    instruction: &Instruction,
-) -> anyhow::Result<()> {
-    ctx.get_new_latest_blockhash().await?;
+async fn swap(ctx: &mut LiteSVM, owner: &Keypair, instruction: &Instruction) -> anyhow::Result<()> {
+    let tx = VersionedTransaction::try_new(
+        VersionedMessage::Legacy(Message::new(&[instruction.clone()], Some(&owner.pubkey()))),
+        &[owner],
+    )
+    .unwrap();
 
-    log::info!("swapping");
-    let result = ctx
-        .sign_send_instructions(&[instruction.clone()], &[&owner])
-        .await;
-
+    let result = ctx.send_transaction(tx);
     match result {
-        Ok(()) => Ok(()),
-        Err(e) => Err(anyhow::format_err!("Failed to swap {:?}", e)),
+        Ok(_) => Ok(()),
+        Err(e) => {
+            log::error!("------------- LOGS ------------------");
+            for log in &e.meta.logs {
+                log::error!("{log:?}");
+            }
+            Err(anyhow::format_err!("Failed to swap {:?}", e.err))
+        },
     }
 }
 
 async fn get_balance(
-    ctx: &mut ProgramTestContext,
+    ctx: &mut LiteSVM,
     owner: Pubkey,
     mint: Pubkey,
     is_2022: bool,
 ) -> anyhow::Result<u64> {
     let ata_address = get_associated_token_address(&owner, &mint);
 
+    let Some(ata) = ctx.get_account(&ata_address) else {
+        return Ok(0);
+    };
+
     if is_2022 {
-        let Ok(ata) = ctx.banks_client.get_account(ata_address).await else {
-            return Ok(0);
-        };
-
-        let Some(ata) = ata else {
-            return Ok(0);
-        };
-
         let ata = spl_token_2022::state::Account::unpack(&ata.data);
         if let Ok(ata) = ata {
             return Ok(ata.amount);
         }
     };
 
-    if let Ok(ata) = ctx.get_token_account(ata_address).await {
+    if let Ok(ata) = spl_token::state::Account::unpack(&ata.data) {
         Ok(ata.amount)
     } else {
         Ok(0u64)
@@ -451,7 +475,7 @@ async fn get_balance(
 }
 
 async fn set_balance(
-    ctx: &mut ProgramTestContext,
+    ctx: &mut LiteSVM,
     owner: Pubkey,
     mint: Pubkey,
     amount: u64,
@@ -474,15 +498,15 @@ async fn set_balance(
         account.pack_into_slice(data.as_mut_slice());
 
         ctx.set_account(
-            &ata_address,
-            &AccountSharedData::from(Account {
+            ata_address,
+            Account {
                 lamports: 1_000_000_000,
                 data: data,
                 owner: spl_token_2022::ID,
                 executable: false,
                 rent_epoch: 0,
-            }),
-        );
+            },
+        )?;
 
         return Ok(());
     }
@@ -501,37 +525,54 @@ async fn set_balance(
     account.pack_into_slice(data.as_mut_slice());
 
     ctx.set_account(
-        &ata_address,
-        &AccountSharedData::from(Account {
+        ata_address,
+        Account {
             lamports: 1_000_000_000,
             data: data,
             owner: spl_token::ID,
             executable: false,
             rent_epoch: 0,
-        }),
-    );
+        },
+    )?;
 
     Ok(())
 }
 
-fn create_wallet(ctx: &mut ProgramTestContext, address: Pubkey) {
-    ctx.set_account(
-        &address,
-        &AccountSharedData::from(Account {
-            lamports: 1_000_000_000,
-            data: vec![],
-            owner: address,
-            executable: false,
-            rent_epoch: 0,
-        }),
-    );
+fn create_wallet(ctx: &mut LiteSVM, address: Pubkey) {
+    let _ = ctx.airdrop(&address, 1_000_000_000);
 }
 
-async fn setup_test_chain(
-    programs: &Vec<Pubkey>,
+pub fn find_file(filename: &str) -> Option<PathBuf> {
+    for dir in default_shared_object_dirs() {
+        let candidate = dir.join(filename);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn default_shared_object_dirs() -> Vec<PathBuf> {
+    let mut search_path = vec![];
+    if let Ok(bpf_out_dir) = std::env::var("BPF_OUT_DIR") {
+        search_path.push(PathBuf::from(bpf_out_dir));
+    } else if let Ok(bpf_out_dir) = std::env::var("SBF_OUT_DIR") {
+        search_path.push(PathBuf::from(bpf_out_dir));
+    }
+    search_path.push(PathBuf::from("tests/fixtures"));
+    if let Ok(dir) = std::env::current_dir() {
+        search_path.push(dir);
+    }
+    log::trace!("SBF .so search path: {:?}", search_path);
+    search_path
+}
+
+fn setup_test_chain(
+    _programs: &Vec<Pubkey>,
     clock: &Clock,
     dump: &ExecutionDump,
-) -> ProgramTestContext {
+    instruction_program: &Pubkey,
+) -> anyhow::Result<LiteSVM> {
     // We need to intercept logs to capture program log output
     let log_filter = "solana_rbpf=trace,\
                     solana_runtime::message_processor=debug,\
@@ -546,27 +587,22 @@ async fn setup_test_chain(
             .build();
     let _ = log::set_boxed_logger(Box::new(env_logger));
 
-    let mut program_test = ProgramTest::default();
+    let mut program_test = LiteSVM::new();
+    program_test.set_sysvar(clock);
 
-    initialize_accounts(&mut program_test, dump).await.unwrap();
+    initialize_accounts(&mut program_test, dump, instruction_program)?;
+    let path = find_file(format!("autobahn_executor.so").as_str()).unwrap();
+    log::debug!("Adding program: {:?} at {path:?}", autobahn_executor::ID);
+    program_test.add_program_from_file(autobahn_executor::ID, path)?;
 
-    program_test.prefer_bpf(true);
-    for &key in programs {
-        program_test.add_program(key.to_string().as_str(), key, None);
-    }
-    program_test.add_program("autobahn_executor", autobahn_executor::ID, None);
+    let path = find_file(format!("{instruction_program:?}.so").as_str()).unwrap();
+    log::debug!("Adding program: {:?} at {path:?}", instruction_program);
+    program_test.add_program_from_file(*instruction_program, path)?;
 
     // TODO: make this dynamic based on routes
-    program_test.set_compute_max_units(1_400_000);
+    let mut cb = solana_program_runtime::compute_budget::ComputeBudget::default();
+    cb.compute_unit_limit = 1_400_000;
+    program_test.set_compute_budget(cb);
 
-    let mut program_test_context = program_test.start_with_context().await;
-
-    // Set clock
-    program_test_context.set_sysvar(clock);
-
-    info!("Setting clock to: {}", clock.unix_timestamp);
-
-    program_test_context.warp_to_slot(40).unwrap();
-
-    program_test_context
+    Ok(program_test)
 }
