@@ -25,7 +25,7 @@ sha2 = "0.10.8"
 tracing = "0.1.40"
 spl-associated-token-account = "1.0.5"
 invariant-types.path = "./src/internal/invariant-types"
-decimal.path = "./src/internal/decimal"
+decimal = { git = "https://github.com/invariant-labs/protocol", rev = "14da6bde97849ddbdc75a23005bcdeb8105c3385" }
 
 num-traits = "0.2.18"
 thiserror = "1.0.61"

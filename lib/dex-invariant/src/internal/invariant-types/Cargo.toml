@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 anchor-lang = "0.29.0"
 borsh = {version = "0.9.3", features = ["const-generics"]}
-decimal = { path = "../decimal" }
+decimal = { git = "https://github.com/invariant-labs/protocol", rev = "14da6bde97849ddbdc75a23005bcdeb8105c3385" }
 num-traits = "0.2.18"
 thiserror = "1.0.61"
 num-derive = "0.3.3"

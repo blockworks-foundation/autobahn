@@ -1977,6 +1977,7 @@ checksum = "7e962a19be5cfc3f3bf6dd8f61eb50107f356ad6270fbb3ed41476571db78be5"
 [[package]]
 name = "decimal"
 version = "0.1.0"
+source = "git+https://github.com/invariant-labs/protocol?rev=14da6bde97849ddbdc75a23005bcdeb8105c3385#14da6bde97849ddbdc75a23005bcdeb8105c3385"
 dependencies = [
  "decimal_core",
  "integer-sqrt",
@@ -1987,6 +1988,7 @@ dependencies = [
 [[package]]
 name = "decimal_core"
 version = "0.1.0"
+source = "git+https://github.com/invariant-labs/protocol?rev=14da6bde97849ddbdc75a23005bcdeb8105c3385#14da6bde97849ddbdc75a23005bcdeb8105c3385"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.35",
