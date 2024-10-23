@@ -100,7 +100,7 @@ where {
         pool_address: Pubkey,
         direction: PriceDirection,
     ) -> anyhow::Result<Vec<Pubkey>> {
-        let indexes = Self::find_closest_tick_indexes_2(
+        let indexes = Self::find_closest_tick_indexes(
             &pool,
             &tickmap.bitmap.data,
             TICK_CROSSES_PER_IX,
@@ -111,7 +111,7 @@ where {
         Ok(Self::tick_indexes_to_addresses(pool_address, &indexes))
     }
 
-    fn find_closest_tick_indexes_2(
+    fn find_closest_tick_indexes(
         pool: &Pool,
         bitmap: &[u8],
         amount_limit: usize,
@@ -171,50 +171,20 @@ where {
             .collect())
     }
 
-    fn find_closest_tick_indexes(
-        pool: &Pool,
-        bitmap: &impl Index<usize, Output = u8>,
-        amount_limit: usize,
-        offset: i32,
-        range_limit: Option<i32>,
-        direction: PriceDirection,
-    ) -> anyhow::Result<Vec<i32>> {
-        let current: i32 = pool.current_tick_index;
-        let tick_spacing: i32 = pool.tick_spacing.into();
-        let tickmap = bitmap;
+    fn find_all_tick_indexes(tick_spacing: u16, tickmap: &Tickmap) -> anyhow::Result<Vec<i32>> {
+        let tick_spacing: i32 = tick_spacing.into();
+        let tickmap = tickmap.bitmap;
 
-        if current % tick_spacing != 0 {
-            panic!("Invalid arguments: can't find initialized ticks")
-        }
-        let mut found: Vec<i32> = Vec::new();
-        let current_index = offset;
-
-        let max_index = get_max_tick(pool.tick_spacing)? / tick_spacing + TICK_LIMIT;
-        let (mut above, mut below, mut reached_limit) =
-            ((current_index + 1).min(max_index), current_index, false);
-
-        let range = range_limit.unwrap_or(TICKMAP_VIEW_RANGE);
-        let max = (above + range - 1).min(TICKMAP_SIZE);
-        let min = (below - range).max(0);
-        while !reached_limit && found.len() < amount_limit {
-            match direction {
-                PriceDirection::UP => {
-                    let value_above: u8 = tickmap[(above / 8) as usize] & (1 << (above % 8));
-                    if value_above != 0 {
-                        found.push(above);
-                    }
-                    reached_limit = above >= max || found.len() >= amount_limit;
-                    above += 1;
-                }
-                PriceDirection::DOWN => {
-                    let value_below: u8 = tickmap[(below / 8) as usize] & (1 << (below % 8));
-                    if value_below != 0 {
-                        found.push(below);
-                    }
-                    reached_limit = below <= min || found.len() >= amount_limit;
-                    below -= 1;
-                }
+        let max_tick = get_max_tick(tick_spacing as u16)? / tick_spacing + TICK_LIMIT;
+        let min_tick = get_min_tick(tick_spacing as u16)? / tick_spacing + TICK_LIMIT;
+        let mut tick = min_tick;
+        let mut found = Vec::new();
+        while tick <= max_tick {
+            let tick_value: u8 = tickmap[(tick / 8) as usize] & (1 << (tick % 8));
+            if tick_value != 0 {
+                found.push(tick);
             }
+            tick += 1;
         }
 
         Ok(found
@@ -301,7 +271,7 @@ impl DexInterface for InvariantDex {
         let edges_per_pk = {
             let mut map = HashMap::new();
             let pools_with_edge_pairs = pools.iter().zip(tickmaps.iter()).zip(edge_pairs.iter());
-            for (((pool_pk, _pool), (tickmap_pk, _tickmap_acc)), (edge_x_to_y, edge_y_to_x)) in
+            for (((pool_pk, pool), (tickmap_pk, tickmap_acc)), (edge_x_to_y, edge_y_to_x)) in
                 pools_with_edge_pairs
             {
                 let entry: Vec<Arc<dyn DexEdgeIdentifier>> =
@@ -309,9 +279,12 @@ impl DexInterface for InvariantDex {
                 map.insert(*pool_pk, entry.clone());
                 map.insert(*tickmap_pk, entry.clone());
 
-                // for tick in indexes {
-                //     map.insert(Self::tick_index_to_address(*pool_pk, tick), entry.clone());
-                // }
+                let tickmap_account_data = tickmap_acc.data();
+                let tickmap = Self::deserialize::<Tickmap>(tickmap_account_data)?;
+                let indexes = Self::find_all_tick_indexes(pool.tick_spacing, &tickmap)?;
+                for tick in indexes {
+                    map.insert(Self::tick_index_to_address(*pool_pk, tick), entry.clone());
+                }
             }
             dbg!("init done");
             map
