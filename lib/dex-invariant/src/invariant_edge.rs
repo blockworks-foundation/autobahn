@@ -8,7 +8,7 @@ use invariant_types::{
         compute_swap_step, cross_tick, cross_tick_no_fee_growth_update, get_closer_limit,
         get_max_tick, get_min_tick, is_enough_amount_to_push_price,
     },
-    structs::{Pool, Tick, Tickmap, TickmapView, TICK_CROSSES_PER_IX},
+    structs::{Pool, Tick, Tickmap, TickmapView, TICKS_BACK_COUNT, TICK_CROSSES_PER_IX},
     MAX_VIRTUAL_CROSS,
 };
 use solana_program::pubkey::Pubkey;
@@ -33,7 +33,7 @@ impl DexEdgeIdentifier for InvariantEdgeIdentifier {
     }
 
     fn desc(&self) -> String {
-        format!("Invariant {}", self.pool)
+        format!("Invariant_{}", self.pool)
     }
 
     fn input_mint(&self) -> Pubkey {
@@ -53,7 +53,9 @@ impl DexEdgeIdentifier for InvariantEdgeIdentifier {
     }
 
     fn accounts_needed(&self) -> usize {
-        20
+        10 // total accounts without ticks
+         - 2 // user output ATA + user wallet address
+          + TICK_CROSSES_PER_IX + TICKS_BACK_COUNT
     }
 
     fn as_any(&self) -> &dyn Any {
