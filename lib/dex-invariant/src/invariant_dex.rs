@@ -231,8 +231,8 @@ impl DexInterface for InvariantDex {
     where
         Self: Sized,
     {
-        let mut pools = fetch_invariant_accounts(rpc, crate::id()).await?;
-        pools.retain(|(_, p)| p.liquidity.v != 0);
+        let pools = fetch_invariant_accounts(rpc, crate::id()).await?;
+
         info!("Number of Invariant Pools: {:?}", pools.len());
 
         let edge_pairs: Vec<(Arc<InvariantEdgeIdentifier>, Arc<InvariantEdgeIdentifier>)> = pools
