@@ -1,10 +1,7 @@
 use crate::internal::accounts::{InvariantSwapAccounts, InvariantSwapParams};
 use crate::invariant_edge::{InvariantEdge, InvariantEdgeIdentifier, InvariantSimulationParams};
 use anchor_spl::associated_token::get_associated_token_address;
-use decimal::*;
-use invariant_types::decimals::Price;
 use invariant_types::math::{get_max_sqrt_price, get_min_sqrt_price};
-use invariant_types::{MAX_SQRT_PRICE, MIN_SQRT_PRICE};
 use router_lib::dex::{AccountProviderView, DexEdgeIdentifier, SwapInstruction};
 use sha2::{Digest, Sha256};
 use solana_program::instruction::Instruction;

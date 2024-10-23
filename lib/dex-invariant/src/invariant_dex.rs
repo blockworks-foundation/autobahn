@@ -1,22 +1,18 @@
 use std::{
     collections::{HashMap, HashSet},
-    io::Read,
-    ops::{Deref, Index, IndexMut},
     sync::Arc,
 };
 
-use anchor_lang::{prelude::*, AnchorDeserialize};
-use anchor_spl::token::spl_token::state::Account;
-use anyhow::{anyhow, bail, Error, Ok};
+use anchor_lang::AnchorDeserialize;
+use anyhow::Ok;
 use async_trait::async_trait;
 use invariant_types::{
-    decimals::Price,
     math::{calculate_price_sqrt, get_max_tick, get_min_tick},
     structs::{
-        tick, tick_to_position, FeeTier, Pool, Tick, Tickmap, TickmapView, MAX_TICK, TICKMAP_SIZE,
+        Pool, Tick, Tickmap, TickmapView,
         TICKS_BACK_COUNT, TICK_CROSSES_PER_IX, TICK_LIMIT, TICK_SEARCH_RANGE,
     },
-    ANCHOR_DISCRIMINATOR_SIZE, MAX_VIRTUAL_CROSS, MIN_SQRT_PRICE, TICK_SEED,
+    ANCHOR_DISCRIMINATOR_SIZE, MAX_VIRTUAL_CROSS, TICK_SEED,
 };
 use router_feed_lib::router_rpc_client::{RouterRpcClient, RouterRpcClientTrait};
 use router_lib::dex::{
@@ -35,9 +31,6 @@ use crate::{
     invariant_edge::{InvariantEdge, InvariantEdgeIdentifier, InvariantSimulationParams},
     invariant_ix_builder::build_swap_ix,
 };
-
-const TICKMAP_VIEW_RANGE: i32 = TICK_SEARCH_RANGE
-    * (MAX_VIRTUAL_CROSS as i32 + TICK_CROSSES_PER_IX as i32 + TICKS_BACK_COUNT as i32);
 
 pub struct InvariantDex {
     pub edges: HashMap<Pubkey, Vec<Arc<dyn DexEdgeIdentifier>>>,

@@ -1,23 +1,18 @@
 use crate::internal::swap::InvariantSwapResult;
-use anchor_spl::token::spl_token::state::Account;
 use decimal::*;
 use invariant_types::{
-    decimals::{Liquidity, Price, TokenAmount},
+    decimals::{Price, TokenAmount},
     log::get_tick_at_sqrt_price,
     math::{
-        compute_swap_step, cross_tick, cross_tick_no_fee_growth_update, get_closer_limit,
+        compute_swap_step, cross_tick_no_fee_growth_update, get_closer_limit,
         get_max_tick, get_min_tick, is_enough_amount_to_push_price,
     },
-    structs::{Pool, Tick, Tickmap, TickmapView, TICKS_BACK_COUNT, TICK_CROSSES_PER_IX},
-    MAX_VIRTUAL_CROSS,
+    structs::{Pool, Tick, TickmapView, TICKS_BACK_COUNT, TICK_CROSSES_PER_IX},
 };
 use solana_program::pubkey::Pubkey;
 use std::any::Any;
-use tracing::trace;
 
 use router_lib::dex::{DexEdge, DexEdgeIdentifier};
-
-use crate::InvariantDex;
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct InvariantEdgeIdentifier {
