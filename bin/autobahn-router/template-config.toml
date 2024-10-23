@@ -109,6 +109,7 @@ min_quote_out_to_in_amount_ratio = 0.65
 always_hot_mints = [
     "So11111111111111111111111111111111111111112",  # SOL
     "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", # USDC
+    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", # USDT
 ]
 keep_latest_count = 50
 
