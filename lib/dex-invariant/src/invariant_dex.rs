@@ -286,7 +286,6 @@ impl DexInterface for InvariantDex {
                     map.insert(Self::tick_index_to_address(*pool_pk, tick), entry.clone());
                 }
             }
-            dbg!("init done");
             map
         };
 
@@ -345,8 +344,6 @@ impl DexInterface for InvariantDex {
             calculate_price_sqrt(get_max_tick(edge.pool.tick_spacing)?)
         };
 
-        dbg!("sim");
-
         let simulation = edge
             .simulate_invariant_swap(&InvariantSimulationParams {
                 x_to_y,
@@ -355,7 +352,6 @@ impl DexInterface for InvariantDex {
                 by_amount_in: true,
             })
             .map_err(|e| anyhow::format_err!(e))?;
-        dbg!("quote");
 
         let fee_mint = if x_to_y { id.token_x } else { id.token_y };
 
