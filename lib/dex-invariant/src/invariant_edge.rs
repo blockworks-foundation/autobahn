@@ -4,8 +4,8 @@ use invariant_types::{
     decimals::{Price, TokenAmount},
     log::get_tick_at_sqrt_price,
     math::{
-        compute_swap_step, cross_tick_no_fee_growth_update, get_closer_limit,
-        get_max_tick, get_min_tick, is_enough_amount_to_push_price,
+        compute_swap_step, cross_tick_no_fee_growth_update, get_closer_limit, get_max_tick,
+        get_min_tick, is_enough_amount_to_push_price,
     },
     structs::{Pool, Tick, TickmapView, TICKS_BACK_COUNT, TICK_CROSSES_PER_IX},
 };
@@ -60,10 +60,8 @@ impl DexEdgeIdentifier for InvariantEdgeIdentifier {
 
 #[derive(Default, Debug)]
 pub struct InvariantEdge {
-    // TODO: use pubkeys or indexes
     pub ticks: Vec<Tick>,
     pub pool: Pool,
-    // TODO: possibly remove and use raw data with bytemuck?
     pub tickmap: TickmapView,
 }
 
@@ -100,12 +98,8 @@ impl InvariantEdge {
             TokenAmount::new(0),
             TokenAmount::new(0),
         );
-        let (
-            mut used_ticks,
-            mut virtual_cross_counter,
-            mut global_insufficient_liquidity,
-            mut ticks_accounts_outdated,
-        ) = (Vec::new(), 0u16, false, false);
+        let (mut used_ticks, mut virtual_cross_counter, mut global_insufficient_liquidity) =
+            (Vec::new(), 0u16, false);
 
         let mut current_tick_array_index = 0;
         while current_tick_array_index < ticks.len() {
@@ -268,12 +262,10 @@ impl InvariantEdge {
             }
         }
 
-        // TODO: split into multiple errors or move up
-        if remaining_amount.0 != 0 || ticks_accounts_outdated || global_insufficient_liquidity {
-            return Err("Insuffcient liquidity".into());
+        if global_insufficient_liquidity {
+            return Err("Insufficient liquidity".to_owned());
         }
 
-        // TODO remove unused fields
         Ok(InvariantSwapResult {
             in_amount: total_amount_in.0,
             out_amount: total_amount_out.0,
@@ -281,9 +273,7 @@ impl InvariantEdge {
             starting_sqrt_price: starting_sqrt_price,
             ending_sqrt_price: pool.sqrt_price,
             used_ticks,
-            virtual_cross_counter,
             global_insufficient_liquidity,
-            ticks_accounts_outdated,
         })
     }
 }

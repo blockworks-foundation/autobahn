@@ -4,15 +4,12 @@ use std::{
 };
 
 use anchor_lang::AnchorDeserialize;
-use anyhow::Ok;
+use anyhow::{Context, Ok};
 use async_trait::async_trait;
 use invariant_types::{
     math::{calculate_price_sqrt, get_max_tick, get_min_tick},
-    structs::{
-        Pool, Tick, Tickmap, TickmapView,
-        TICKS_BACK_COUNT, TICK_CROSSES_PER_IX, TICK_LIMIT, TICK_SEARCH_RANGE,
-    },
-    ANCHOR_DISCRIMINATOR_SIZE, MAX_VIRTUAL_CROSS, TICK_SEED,
+    structs::{Pool, Tick, Tickmap, TickmapView, TICK_CROSSES_PER_IX, TICK_LIMIT},
+    ANCHOR_DISCRIMINATOR_SIZE, TICK_SEED,
 };
 use router_feed_lib::router_rpc_client::{RouterRpcClient, RouterRpcClientTrait};
 use router_lib::dex::{
@@ -344,7 +341,8 @@ impl DexInterface for InvariantDex {
                 sqrt_price_limit,
                 by_amount_in: true,
             })
-            .map_err(|e| anyhow::format_err!(e))?;
+            .map_err(|e| anyhow::format_err!(e))
+            .with_context(|| format!("pool {} x_to_y {}", id.pool, id.x_to_y))?;
 
         let fee_mint = if x_to_y { id.token_x } else { id.token_y };
 
@@ -397,6 +395,8 @@ impl DexInterface for InvariantDex {
         _chain_data: &AccountProviderView,
         out_amount: u64,
     ) -> anyhow::Result<Quote> {
+        anyhow::bail!("Not supported");
+
         let edge = edge.as_any().downcast_ref::<InvariantEdge>().unwrap();
         let id = id
             .as_any()
@@ -417,7 +417,8 @@ impl DexInterface for InvariantDex {
                 sqrt_price_limit,
                 by_amount_in: true,
             })
-            .map_err(|e| anyhow::format_err!(e))?;
+            .map_err(|e| anyhow::format_err!(e))
+            .with_context(|| format!("pool {} x_to_y {}", id.pool, id.x_to_y))?;
 
         let fee_mint = if x_to_y { id.token_x } else { id.token_y };
 

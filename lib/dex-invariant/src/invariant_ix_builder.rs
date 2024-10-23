@@ -1,6 +1,7 @@
 use crate::internal::accounts::{InvariantSwapAccounts, InvariantSwapParams};
 use crate::invariant_edge::{InvariantEdge, InvariantEdgeIdentifier, InvariantSimulationParams};
 use anchor_spl::associated_token::get_associated_token_address;
+use anyhow::Context;
 use invariant_types::math::{get_max_sqrt_price, get_min_sqrt_price};
 use router_lib::dex::{AccountProviderView, DexEdgeIdentifier, SwapInstruction};
 use sha2::{Digest, Sha256};
@@ -31,16 +32,15 @@ pub fn build_swap_ix(
         get_max_sqrt_price(edge.pool.tick_spacing)?
     };
 
-    let invariant_swap_result = &edge.simulate_invariant_swap(&InvariantSimulationParams {
-        x_to_y: id.x_to_y,
-        in_amount,
-        sqrt_price_limit,
-        by_amount_in,
-    }).map_err(|e| anyhow::format_err!(e))?;
-    // let sqrt_price_limit = invariant_swap_result.ending_sqrt_price;
-    if invariant_swap_result.is_not_enough_liquidity() {
-        anyhow::bail!("Insufficient liquidity");
-    };
+    let invariant_swap_result = &edge
+        .simulate_invariant_swap(&InvariantSimulationParams {
+            x_to_y: id.x_to_y,
+            in_amount,
+            sqrt_price_limit,
+            by_amount_in,
+        })
+        .map_err(|e| anyhow::format_err!(e))
+        .with_context(|| format!("pool {} x_to_y {}", id.pool, id.x_to_y))?;
 
     let swap_params = InvariantSwapParams {
         source_account,

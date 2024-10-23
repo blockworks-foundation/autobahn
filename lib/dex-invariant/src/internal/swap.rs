@@ -24,17 +24,10 @@ pub struct InvariantSwapResult {
     pub starting_sqrt_price: Price,
     pub ending_sqrt_price: Price,
     pub used_ticks: Vec<i32>,
-    pub virtual_cross_counter: u16,
     pub global_insufficient_liquidity: bool,
-    pub ticks_accounts_outdated: bool,
 }
 
 impl InvariantSwapResult {
-    pub fn is_not_enough_liquidity(&self) -> bool {
-        // since "is_referral" is not specified in the quote parameters, we pessimistically assume that the referral is always used
-        self.ticks_accounts_outdated || self.global_insufficient_liquidity
-    }
-
     pub fn break_swap_loop_early(
         ticks_used: u16,
         virtual_ticks_crossed: u16,
