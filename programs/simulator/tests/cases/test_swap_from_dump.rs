@@ -3,6 +3,8 @@ use litesvm::LiteSVM;
 use log::{error, info, warn};
 use router_test_lib::execution_dump::{ExecutionDump, ExecutionItem};
 use router_test_lib::{execution_dump, serialize};
+use sha2::Digest;
+use sha2::Sha256;
 use solana_program::clock::Clock;
 use solana_program::instruction::Instruction;
 use solana_program::program_pack::Pack;
@@ -15,14 +17,14 @@ use solana_sdk::message::{Message, VersionedMessage};
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::VersionedTransaction;
-use spl_associated_token_account::get_associated_token_address;
+use spl_associated_token_account::{
+    get_associated_token_address, get_associated_token_address_with_program_id,
+};
 use spl_token::state::AccountState;
 use spl_token_2022::state::AccountState as AccountState2022;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
-// use sha2::Sha256;
-// use sha2::Digest;
 
 struct TestLogSyscallStubs;
 impl SyscallStubs for TestLogSyscallStubs {
@@ -143,28 +145,31 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
             quote.input_mint,
             initial_in_balance,
             input_mint_is_2022,
-        )
-        .await?;
+        )?;
         set_balance(
             &mut ctx,
             wallet.pubkey(),
             quote.output_mint,
             initial_out_balance,
             output_mint_is_2022,
-        )
-        .await?;
+        )?;
 
         for meta in &instruction.accounts {
-            let Some(_account) = ctx.get_account(&meta.pubkey) else {
+            let Some(account) = ctx.get_account(&meta.pubkey) else {
                 log::warn!("missing account : {:?}", meta.pubkey);
                 continue;
             };
+
             // keep code to test hashses
-            // let mut hasher = Sha256::new();
-            // hasher.update(account.data());
-            // let result = hasher.finalize();
-            // let base64 = base64::encode(result);
-            // log::debug!("account : {:?} dump : {base64:?} executable : {}", meta.pubkey, account.executable());
+            let mut hasher = Sha256::new();
+            hasher.update(account.data());
+            let result = hasher.finalize();
+            let base64 = base64::encode(result);
+            log::debug!(
+                "account : {:?} dump : {base64:?} executable : {}",
+                meta.pubkey,
+                account.executable()
+            );
         }
 
         if let Some(cus) = simulate_cu_usage(&mut ctx, &wallet, &instruction).await {
@@ -334,17 +339,10 @@ fn deserialize_instruction(swap_ix: &Vec<u8>) -> anyhow::Result<Instruction> {
     Ok(instruction)
 }
 
-fn initialize_accounts(
-    program_test: &mut LiteSVM,
-    dump: &ExecutionDump,
-    instruction_program: &Pubkey,
-) -> anyhow::Result<()> {
+fn initialize_accounts(program_test: &mut LiteSVM, dump: &ExecutionDump) -> anyhow::Result<()> {
     log::debug!("initializing accounts : {:?}", dump.accounts.len());
     let accounts_to_load = dump.accounts.clone();
     for (pk, account) in &accounts_to_load {
-        if *pk == *instruction_program {
-            continue;
-        }
         if *account.owner() == solana_sdk::bpf_loader_upgradeable::ID {
             log::debug!("{pk:?} has upgradable loader");
             let state = bincode::deserialize::<UpgradeableLoaderState>(&account.data()).unwrap();
@@ -439,12 +437,12 @@ async fn swap(ctx: &mut LiteSVM, owner: &Keypair, instruction: &Instruction) -> 
     match result {
         Ok(_) => Ok(()),
         Err(e) => {
-            log::error!("------------- LOGS ------------------");
+            log::debug!("------------- LOGS ------------------");
             for log in &e.meta.logs {
-                log::error!("{log:?}");
+                log::debug!("{log:?}");
             }
             Err(anyhow::format_err!("Failed to swap {:?}", e.err))
-        },
+        }
     }
 }
 
@@ -474,17 +472,24 @@ async fn get_balance(
     }
 }
 
-async fn set_balance(
+fn set_balance(
     ctx: &mut LiteSVM,
     owner: Pubkey,
     mint: Pubkey,
     amount: u64,
     is_2022: bool,
 ) -> anyhow::Result<()> {
-    let ata_address = get_associated_token_address(&owner, &mint);
+    let token_program_id = if is_2022 {
+        spl_token_2022::ID
+    } else {
+        spl_token::ID
+    };
+
+    let ata_address =
+        get_associated_token_address_with_program_id(&owner, &mint, &token_program_id);
+    let mut data = vec![0u8; 165];
 
     if is_2022 {
-        let mut data = vec![0u8; 165];
         let account = spl_token_2022::state::Account {
             mint,
             owner,
@@ -496,42 +501,28 @@ async fn set_balance(
             close_authority: Default::default(),
         };
         account.pack_into_slice(data.as_mut_slice());
-
-        ctx.set_account(
-            ata_address,
-            Account {
-                lamports: 1_000_000_000,
-                data: data,
-                owner: spl_token_2022::ID,
-                executable: false,
-                rent_epoch: 0,
-            },
-        )?;
-
-        return Ok(());
-    }
-
-    let mut data = vec![0u8; 165];
-    let account = spl_token::state::Account {
-        mint,
-        owner,
-        amount,
-        delegate: Default::default(),
-        state: AccountState::Initialized,
-        is_native: Default::default(),
-        delegated_amount: 0,
-        close_authority: Default::default(),
+    } else {
+        let account = spl_token::state::Account {
+            mint,
+            owner,
+            amount,
+            delegate: Default::default(),
+            state: AccountState::Initialized,
+            is_native: Default::default(),
+            delegated_amount: 0,
+            close_authority: Default::default(),
+        };
+        account.pack_into_slice(data.as_mut_slice());
     };
-    account.pack_into_slice(data.as_mut_slice());
 
     ctx.set_account(
         ata_address,
         Account {
             lamports: 1_000_000_000,
             data: data,
-            owner: spl_token::ID,
+            owner: token_program_id,
             executable: false,
-            rent_epoch: 0,
+            rent_epoch: u64::MAX,
         },
     )?;
 
@@ -571,7 +562,7 @@ fn setup_test_chain(
     _programs: &Vec<Pubkey>,
     clock: &Clock,
     dump: &ExecutionDump,
-    instruction_program: &Pubkey,
+    _instruction_program: &Pubkey,
 ) -> anyhow::Result<LiteSVM> {
     // We need to intercept logs to capture program log output
     let log_filter = "solana_rbpf=trace,\
@@ -590,14 +581,10 @@ fn setup_test_chain(
     let mut program_test = LiteSVM::new();
     program_test.set_sysvar(clock);
 
-    initialize_accounts(&mut program_test, dump, instruction_program)?;
+    initialize_accounts(&mut program_test, dump)?;
     let path = find_file(format!("autobahn_executor.so").as_str()).unwrap();
     log::debug!("Adding program: {:?} at {path:?}", autobahn_executor::ID);
     program_test.add_program_from_file(autobahn_executor::ID, path)?;
-
-    let path = find_file(format!("{instruction_program:?}.so").as_str()).unwrap();
-    log::debug!("Adding program: {:?} at {path:?}", instruction_program);
-    program_test.add_program_from_file(*instruction_program, path)?;
 
     // TODO: make this dynamic based on routes
     let mut cb = solana_program_runtime::compute_budget::ComputeBudget::default();

@@ -126,7 +126,7 @@ pub async fn run_dump_mainnet_data_with_custom_amount(
     }
     let accounts = rpc_client.get_multiple_accounts(&accounts_needed).await?;
 
-    for (_, account) in accounts {
+    for (_pk, account) in accounts {
         // get buffer for upgradable programs
         if account.owner == solana_sdk::bpf_loader_upgradeable::ID {
             let state = bincode::deserialize::<UpgradeableLoaderState>(&account.data).unwrap();
@@ -260,7 +260,7 @@ pub async fn run_dump_swap_ix_with_custom_amount(
         dump.accounts
             .insert(id.input_mint(), account.account.clone());
         let account = chain_data_reader
-            .account(&id.input_mint())
+            .account(&id.output_mint())
             .expect("missing mint");
         dump.accounts
             .insert(id.output_mint(), account.account.clone());
@@ -307,9 +307,6 @@ pub async fn run_dump_swap_ix_with_custom_amount(
                     instruction: bincode::serialize(&swap_exact_out_ix.instruction).unwrap(),
                     is_exact_out: true,
                 });
-
-                // add exact out accounts
-                let chain_data_reader = chain_data.read().unwrap();
                 for account in swap_exact_out_ix.instruction.accounts {
                     if let Ok(acc) = chain_data_reader.account(&account.pubkey) {
                         dump.accounts.insert(account.pubkey, acc.account.clone());
@@ -351,9 +348,9 @@ pub async fn run_dump_swap_ix_with_custom_amount(
         debug!("program : {program:?}");
     }
 
-    for (pk, program) in &dump.accounts {
+    for (pk, account_data) in &dump.accounts {
         let mut hasher = Sha256::new();
-        hasher.update(program.data());
+        hasher.update(account_data.data());
         let result = hasher.finalize();
         let base64 = base64::encode(result);
         debug!("account : {pk:?} dump : {base64:?}");
