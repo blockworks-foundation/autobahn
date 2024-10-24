@@ -73,6 +73,8 @@ async fn test_quote_match_swap_for_infinity() -> anyhow::Result<()> {
 }
 
 async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Error> {
+    tracing_subscriber::fmt::init();
+
     let mut skip_count = option_env!("SKIP_COUNT")
         .map(|x| u32::from_str(x).unwrap_or(0))
         .unwrap_or(0);

@@ -6797,6 +6797,8 @@ dependencies = [
  "spl-token-2022 1.0.0",
  "test-case",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
