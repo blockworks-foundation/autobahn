@@ -498,6 +498,7 @@ fn set_balance(
     let mut data = vec![0u8; 165];
 
     if is_2022 {
+        // TODO: to properly setup extensions, this is not sufficient
         let account = spl_token_2022::state::Account {
             mint,
             owner,
