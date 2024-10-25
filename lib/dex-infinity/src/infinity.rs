@@ -72,7 +72,7 @@ impl DexInterface for InfinityDex {
                 continue;
             };
 
-            if lst_state.is_input_disabled!= 0 {
+            if lst_state.is_input_disabled != 0 {
                 continue;
             }
 

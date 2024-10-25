@@ -128,7 +128,7 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
         let instruction = deserialize_instruction(&quote.instruction)?;
 
         let programs = data.programs.iter().copied().collect();
-        let mut ctx = setup_test_chain(&programs, &clock, &data, &instruction.program_id)?;
+        let mut ctx = setup_test_chain(&programs, &clock, &data, &instruction)?;
 
         create_wallet(&mut ctx, wallet.pubkey());
 
@@ -341,10 +341,16 @@ fn deserialize_instruction(swap_ix: &Vec<u8>) -> anyhow::Result<Instruction> {
     Ok(instruction)
 }
 
-fn initialize_accounts(program_test: &mut LiteSVM, dump: &ExecutionDump) -> anyhow::Result<()> {
+fn initialize_accounts(
+    program_test: &mut LiteSVM,
+    dump: &ExecutionDump,
+    accounts_list: &Vec<Pubkey>,
+) -> anyhow::Result<()> {
     log::debug!("initializing accounts : {:?}", dump.accounts.len());
-    let accounts_to_load = dump.accounts.clone();
-    for (pk, account) in &accounts_to_load {
+    for pk in accounts_list {
+        let Some(account) = dump.accounts.get(pk) else {
+            continue;
+        };
         if *account.owner() == solana_sdk::bpf_loader_upgradeable::ID {
             log::debug!("{pk:?} has upgradable loader");
             let state = bincode::deserialize::<UpgradeableLoaderState>(&account.data()).unwrap();
@@ -353,7 +359,7 @@ fn initialize_accounts(program_test: &mut LiteSVM, dump: &ExecutionDump) -> anyh
             } = state
             {
                 // load buffer accounts first
-                match accounts_to_load.get(&programdata_address) {
+                match dump.accounts.get(&programdata_address) {
                     Some(program_buffer) => {
                         log::debug!("loading buffer:  {programdata_address:?}");
                         program_test.set_account(
@@ -439,9 +445,9 @@ async fn swap(ctx: &mut LiteSVM, owner: &Keypair, instruction: &Instruction) -> 
     match result {
         Ok(_) => Ok(()),
         Err(e) => {
-            log::debug!("------------- LOGS ------------------");
+            log::error!("------------- LOGS ------------------");
             for log in &e.meta.logs {
-                log::debug!("{log:?}");
+                log::error!("{log:?}");
             }
             Err(anyhow::format_err!("Failed to swap {:?}", e.err))
         }
@@ -561,29 +567,17 @@ fn default_shared_object_dirs() -> Vec<PathBuf> {
 }
 
 fn setup_test_chain(
-    _programs: &Vec<Pubkey>,
+    programs: &Vec<Pubkey>,
     clock: &Clock,
     dump: &ExecutionDump,
-    _instruction_program: &Pubkey,
+    instruction: &Instruction,
 ) -> anyhow::Result<LiteSVM> {
-    // We need to intercept logs to capture program log output
-    let log_filter = "solana_rbpf=trace,\
-                    solana_runtime::message_processor=debug,\
-                    solana_runtime::system_instruction_processor=trace,\
-                    solana_program_test=info,\
-                    solana_metrics::metrics=warn,\
-                    tarpc=error,\
-                    info";
-    let env_logger =
-        env_logger::Builder::from_env(env_logger::Env::new().default_filter_or(log_filter))
-            .format_timestamp_nanos()
-            .build();
-    let _ = log::set_boxed_logger(Box::new(env_logger));
-
     let mut program_test = LiteSVM::new();
     program_test.set_sysvar(clock);
+    let mut accounts_list = programs.clone();
+    accounts_list.extend(instruction.accounts.iter().map(|x| x.pubkey));
 
-    initialize_accounts(&mut program_test, dump)?;
+    initialize_accounts(&mut program_test, dump, &accounts_list)?;
     let path = find_file(format!("autobahn_executor.so").as_str()).unwrap();
     log::debug!("Adding program: {:?} at {path:?}", autobahn_executor::ID);
     program_test.add_program_from_file(autobahn_executor::ID, path)?;
