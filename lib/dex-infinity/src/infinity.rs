@@ -68,6 +68,14 @@ impl DexInterface for InfinityDex {
             let lst_mint = lst_data.sol_val_calc.lst_mint();
             let account_metas = lst_data.sol_val_calc.ix_accounts();
             let num_accounts_for_tx = account_metas.len();
+            let Ok((lst_state, lst_data)) = amm.find_ready_lst(lst_mint) else {
+                continue;
+            };
+
+            if lst_state.is_input_disabled != 0 {
+                continue;
+            }
+
             for pk in lst_data.sol_val_calc.get_accounts_to_update() {
                 let edges = vec![
                     Arc::new(InfinityEdgeIdentifier {
