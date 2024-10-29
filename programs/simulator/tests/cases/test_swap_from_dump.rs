@@ -106,6 +106,14 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
         .ok_or("invalid dump doesnt contain clock sysvar")
         .unwrap();
     let clock = clock_account.deserialize_data::<Clock>()?;
+    let simulate = option_env!("SIMULATE")
+        .map(|x| bool::from_str(x).unwrap_or(false))
+        .unwrap_or_default();
+    let debug_hashes = option_env!("DEBUG_HASHES")
+        .map(|x| bool::from_str(x).unwrap_or(false))
+        .unwrap_or_default();
+
+    let mut ctx = setup_test_chain(&clock, &data)?;
 
     let mut cus_required = vec![];
     for quote in &data.cache {
@@ -126,9 +134,6 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
         }
 
         let instruction = deserialize_instruction(&quote.instruction)?;
-
-        let programs = data.programs.iter().copied().collect();
-        let mut ctx = setup_test_chain(&programs, &clock, &data, &instruction)?;
 
         create_wallet(&mut ctx, wallet.pubkey());
 
@@ -162,20 +167,23 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
                 continue;
             };
 
-            // keep code to test hashses
-            let mut hasher = Sha256::new();
-            hasher.update(account.data());
-            let result = hasher.finalize();
-            let base64 = base64::encode(result);
-            log::debug!(
-                "account : {:?} dump : {base64:?} executable : {}",
-                meta.pubkey,
-                account.executable()
-            );
+            if debug_hashes {
+                let mut hasher = Sha256::new();
+                hasher.update(account.data());
+                let result = hasher.finalize();
+                let base64 = base64::encode(result);
+                log::debug!(
+                    "account : {:?} dump : {base64:?} executable : {}",
+                    meta.pubkey,
+                    account.executable()
+                );
+            }
         }
 
-        if let Some(cus) = simulate_cu_usage(&mut ctx, &wallet, &instruction).await {
-            cus_required.push(cus);
+        if simulate {
+            if let Some(cus) = simulate_cu_usage(&mut ctx, &wallet, &instruction).await {
+                cus_required.push(cus);
+            }
         }
 
         match swap(&mut ctx, &wallet, &instruction).await {
@@ -252,6 +260,17 @@ async fn run_all_swap_from_dump(dump_name: &str) -> Result<Result<(), Error>, Er
         }
 
         success += 1;
+
+        // reset the mutable accounts for next test
+        reinitialize_accounts(
+            &mut ctx,
+            &data,
+            &instruction
+                .accounts
+                .iter()
+                .filter_map(|x| if x.is_writable { Some(x.pubkey) } else { None })
+                .collect(),
+        )?;
     }
 
     cus_required.sort();
@@ -341,14 +360,46 @@ fn deserialize_instruction(swap_ix: &Vec<u8>) -> anyhow::Result<Instruction> {
     Ok(instruction)
 }
 
-fn initialize_accounts(
+fn reinitialize_accounts(
     program_test: &mut LiteSVM,
     dump: &ExecutionDump,
     accounts_list: &Vec<Pubkey>,
 ) -> anyhow::Result<()> {
-    log::debug!("initializing accounts : {:?}", dump.accounts.len());
+    log::debug!("reinitializing accounts : {:?}", accounts_list.len());
     for pk in accounts_list {
-        let Some(account) = dump.accounts.get(pk) else {
+        let Some(account) = dump.accounts.get(&pk) else {
+            continue;
+        };
+        log::debug!(
+            "Setting data for {} with owner {} and is executable {}",
+            pk,
+            account.owner(),
+            account.executable()
+        );
+
+        log::debug!("Setting data for {}", pk);
+        program_test.set_account(
+            *pk,
+            solana_sdk::account::Account {
+                lamports: account.lamports(),
+                owner: *account.owner(),
+                data: account.data().to_vec(),
+                rent_epoch: account.rent_epoch(),
+                executable: account.executable(),
+            },
+        )?;
+    }
+
+    Ok(())
+}
+
+fn initialize_accounts(program_test: &mut LiteSVM, dump: &ExecutionDump) -> anyhow::Result<()> {
+    log::debug!("initializing accounts : {:?}", dump.accounts.len());
+    let mut accounts_list = dump.programs.clone();
+    accounts_list.extend(dump.accounts.iter().map(|x| x.0.clone()));
+
+    for pk in accounts_list {
+        let Some(account) = dump.accounts.get(&pk) else {
             continue;
         };
         if *account.owner() == solana_sdk::bpf_loader_upgradeable::ID {
@@ -388,7 +439,7 @@ fn initialize_accounts(
 
         log::debug!("Setting data for {}", pk);
         program_test.set_account(
-            *pk,
+            pk,
             solana_sdk::account::Account {
                 lamports: account.lamports(),
                 owner: *account.owner(),
@@ -567,18 +618,11 @@ fn default_shared_object_dirs() -> Vec<PathBuf> {
     search_path
 }
 
-fn setup_test_chain(
-    programs: &Vec<Pubkey>,
-    clock: &Clock,
-    dump: &ExecutionDump,
-    instruction: &Instruction,
-) -> anyhow::Result<LiteSVM> {
+fn setup_test_chain(clock: &Clock, dump: &ExecutionDump) -> anyhow::Result<LiteSVM> {
     let mut program_test = LiteSVM::new();
     program_test.set_sysvar(clock);
-    let mut accounts_list = programs.clone();
-    accounts_list.extend(instruction.accounts.iter().map(|x| x.pubkey));
 
-    initialize_accounts(&mut program_test, dump, &accounts_list)?;
+    initialize_accounts(&mut program_test, dump)?;
     let path = find_file(format!("autobahn_executor.so").as_str()).unwrap();
     log::debug!("Adding program: {:?} at {path:?}", autobahn_executor::ID);
     program_test.add_program_from_file(autobahn_executor::ID, path)?;
