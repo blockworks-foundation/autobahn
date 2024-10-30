@@ -18,7 +18,6 @@ impl PrometheusSync {
     }
 
     async fn get_prometheus_stream() -> Result<String, AppError> {
-        error!("got message for prometheus");
         let mut metrics_buffer = Vec::new();
         let encoder = TextEncoder::new();
 
