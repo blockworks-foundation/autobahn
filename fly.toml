@@ -10,8 +10,8 @@ kill_timeout = "30s"
   cmd = ["autobahn-router", "/usr/local/bin/template-config.toml"]
 
 [[vm]]
-  size = "shared-cpu-4x"
-  memory = "8gb"
+  size = "performance-4x"
+  memory = "16gb"
 
 [[restart]]
   policy = "always"
