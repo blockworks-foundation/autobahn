@@ -614,7 +614,7 @@ impl Routing {
         hot_mints: &HashSet<Pubkey>,
         swap_mode: SwapMode,
     ) {
-        info!("prepare_pruned_edges_and_cleanup_cache started");
+        debug!("prepare_pruned_edges_and_cleanup_cache started");
         self.path_discovery_cache.write().unwrap().expire_old();
 
         let (valid_edge_count, out_edges_per_mint_index) = Self::select_best_pools(
@@ -645,7 +645,7 @@ impl Routing {
             (*writer).1 = out_edges_per_mint_index;
         }
 
-        info!("prepare_pruned_edges_and_cleanup_cache done");
+        debug!("prepare_pruned_edges_and_cleanup_cache done");
     }
 
     fn compute_price_impact(edge: &Arc<Edge>) -> Option<f64> {
@@ -1541,11 +1541,11 @@ impl Routing {
         let can_try_one_more_hop = max_path_length != self.max_path_length;
         if !ignore_cache && (used_cached_paths || can_try_one_more_hop) {
             if used_cached_paths {
-                info!("Invalid cached path, retrying without cache");
+                debug!("Invalid cached path, retrying without cache");
                 let mut cache = self.path_discovery_cache.write().unwrap();
                 cache.invalidate(input_index, output_index, max_accounts);
             } else {
-                warn!("No path within boundaries, retrying with +1 hop");
+                debug!("No path within boundaries, retrying with +1 hop");
             }
             return self.find_best_route(
                 chain_data,
@@ -1560,7 +1560,7 @@ impl Routing {
             );
         }
 
-        self.print_debug_data(input_mint, output_mint, max_accounts);
+        // self.print_debug_data(input_mint, output_mint, max_accounts);
 
         bail!(RoutingError::NoPathBetweenMintPair(
             input_mint.clone(),
