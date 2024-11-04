@@ -7,7 +7,7 @@ use anchor_spl::token_2022::spl_token_2022;
 use anyhow::Context;
 use async_trait::async_trait;
 use gamma::program::Gamma;
-use gamma::states::{block_timestamp, AmmConfig, ObservationState, PoolState, PoolStatusBitIndex};
+use gamma::states::{AmmConfig, ObservationState, PoolState, PoolStatusBitIndex};
 use itertools::Itertools;
 use router_feed_lib::router_rpc_client::{RouterRpcClient, RouterRpcClientTrait};
 use router_lib::dex::{
@@ -25,7 +25,6 @@ use solana_sdk::clock::Clock;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::sysvar::SysvarId;
 use std::collections::{HashMap, HashSet};
-use std::str::FromStr;
 use std::sync::Arc;
 use std::u64;
 
