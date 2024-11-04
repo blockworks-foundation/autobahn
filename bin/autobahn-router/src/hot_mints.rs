@@ -3,7 +3,7 @@ use router_config_lib::HotMintsConfig;
 use solana_program::pubkey::Pubkey;
 use std::collections::{HashSet, VecDeque};
 use std::str::FromStr;
-use tracing::info;
+use tracing::debug;
 
 pub struct HotMintsCache {
     max_count: usize,
@@ -50,11 +50,11 @@ impl HotMintsCache {
         } else if self.latest_unordered.len() >= self.max_count {
             let oldest = self.latest_ordered.pop_back().unwrap();
             self.latest_unordered.remove(&oldest);
-            info!("Removing {} from hot mints", debug_tools::name(&oldest));
+            debug!("Removing {} from hot mints", debug_tools::name(&oldest));
         }
 
         if self.latest_unordered.insert(pubkey) {
-            info!("Adding {} to hot mints", debug_tools::name(&pubkey));
+            debug!("Adding {} to hot mints", debug_tools::name(&pubkey));
         }
         self.latest_ordered.push_front(pubkey);
         return;
