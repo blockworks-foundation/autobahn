@@ -1,5 +1,5 @@
 app = "router-2"
-primary_region = "dfw"
+primary_region = "ams"
 kill_signal = "SIGTERM"
 kill_timeout = "30s"
 

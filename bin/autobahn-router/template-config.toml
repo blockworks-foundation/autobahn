@@ -52,7 +52,7 @@ path_warming_for_mints = [
 #    "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4"  # JLP
 ]
 path_warming_interval_secs = 5
-path_warming_max_accounts = [20, 25, 30, 35, 40, 64]
+path_warming_max_accounts = [20, 30, 40, 64]
 lookup_tables = ["87TgskchTNEv1uXkGQk1U4zt65tjqbfGAZWNMGAcRRPx",
     "AgCBUZ6UMWqPLftTxeAqpQxtrfiCyL2HgRfmmM6QTfCj",
     "A1v3qxN7HbUvtyPnnaoCrKonXjkFLaDHXk3S6R2QfEaw",
