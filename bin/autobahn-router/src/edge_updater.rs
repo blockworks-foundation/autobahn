@@ -167,20 +167,19 @@ pub fn spawn_updater_job(
                     if !updater.invalidate_one(res) {
                         break 'drain_loop;
                     }
+                    // let mut batchsize: u32 = 0;
+                    // let started_at = Instant::now();
+                    // 'batch_loop: while let Ok(res) = account_updates.try_recv() {
+                    //     batchsize += 1;
+                    //     if !updater.invalidate_one(Ok(res)) {
+                    //         break 'drain_loop;
+                    //     }
 
-                    let mut batchsize: u32 = 0;
-                    let started_at = Instant::now();
-                    'batch_loop: while let Ok(res) = account_updates.try_recv() {
-                        batchsize += 1;
-                        if !updater.invalidate_one(Ok(res)) {
-                            break 'drain_loop;
-                        }
-
-                        // budget for microbatch
-                        if batchsize > 10 || started_at.elapsed() > Duration::from_micros(500) {
-                            break 'batch_loop;
-                        }
-                    }
+                    //     // budget for microbatch
+                    //     if batchsize > 10 || started_at.elapsed() > Duration::from_micros(500) {
+                    //         break 'batch_loop;
+                    //     }
+                    // }
                 },
                 Ok(price_upd) = price_updates.recv() => {
                     if let Some(impacted_edges) = updater.state.edges_per_mint.get(&price_upd.mint) {
