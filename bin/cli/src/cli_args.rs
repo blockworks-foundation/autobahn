@@ -27,7 +27,7 @@ pub struct Quote {
     #[clap(short, long)]
     pub amount: u64,
 
-    #[clap(short, long, default_value = "50")]
+    #[clap(long, default_value = "50")]
     pub slippage_bps: u64,
 
     #[clap(short, long, default_value = "http://localhost:8888")]
@@ -52,7 +52,7 @@ pub struct Swap {
     #[clap(short, long)]
     pub amount: u64,
 
-    #[clap(short, long, default_value = "50")]
+    #[clap(long, default_value = "50")]
     pub slippage_bps: u64,
 
     #[clap(short, long, default_value = "http://localhost:8888")]

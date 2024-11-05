@@ -85,7 +85,7 @@ birdeye_token = "$BIRDEYE_TOKEN"
 refresh_interval_secs = 1200     # every 20 min
 
 [safety_checks]
-check_quote_out_amount_deviation = true
+check_quote_out_amount_deviation = false
 min_quote_out_to_in_amount_ratio = 0.65
 
 [hot_mints]
