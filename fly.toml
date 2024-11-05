@@ -1,5 +1,5 @@
-app = "router-1"
-primary_region = "ams"
+app = "router-2"
+primary_region = "dfw"
 kill_signal = "SIGTERM"
 kill_timeout = "30s"
 
@@ -10,8 +10,8 @@ kill_timeout = "30s"
   cmd = ["autobahn-router", "/usr/local/bin/template-config.toml"]
 
 [[vm]]
-  size = "performance-4x"
-  memory = "16gb"
+  size = "performance-16x"
+  memory = "32gb"
 
 [[restart]]
   policy = "always"
