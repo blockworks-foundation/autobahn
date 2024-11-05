@@ -4,13 +4,16 @@ kill_signal = "SIGTERM"
 kill_timeout = "30s"
 
 [build]
-  dockerfile = 'bin/autobahn-router/eclipse/Dockerfile'
+  dockerfile = 'bin/autobahn-router/Dockerfile'
+
+[build.args]
+  CONFIG_PATH="/app/bin/autobahn-router/template-config-eclipse.toml"
 
 [experimental]
-  cmd = ["autobahn-router", "/usr/local/bin/template-config-eclipse.toml"]
+  cmd = ["autobahn-router", "/usr/local/bin/template-config.toml"]
 
 [[vm]]
-  size = "shared-4x"
+  size = "shared-cpu-4x"
   memory = "8gb"
 
 [[restart]]
