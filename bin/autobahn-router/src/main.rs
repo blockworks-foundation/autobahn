@@ -154,7 +154,7 @@ async fn main() -> anyhow::Result<()> {
     let (metadata_write_sender, metadata_write_receiver) =
         async_channel::unbounded::<FeedMetadata>();
     let (slot_sender, slot_receiver) = async_channel::unbounded::<SlotUpdate>();
-    let (account_update_sender, _) = broadcast::channel(1048576); // TODO this is huge, but init snapshot will completely spam this
+    let (account_update_sender, _) = broadcast::channel(4 * 1024 * 1024); // TODO this is huge, but init snapshot will completely spam this
 
     let chain_data = Arc::new(RwLock::new(ChainData::new()));
     start_chaindata_updating(
