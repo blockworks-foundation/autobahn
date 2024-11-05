@@ -252,7 +252,6 @@ impl OrcaDex {
         let tick_arrays = filtered_pools
             .iter()
             .map(|(pk, wp)| {
-                println!("whirlpool : {pk}, {}", wp.tick_spacing);
                 whirlpool_tick_array_pks(wp, pk, program_id)
             })
             .collect_vec();

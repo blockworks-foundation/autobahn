@@ -217,7 +217,7 @@ pub async fn get_uncompressed_program_account_rpc(
         with_context: Some(true),
         account_config: RpcAccountInfoConfig {
             encoding: Some(UiAccountEncoding::Base64),
-            min_context_slot: Some(slot),
+            min_context_slot: None,
             commitment: config.account_config.commitment,
             data_slice: config.account_config.data_slice,
         },
