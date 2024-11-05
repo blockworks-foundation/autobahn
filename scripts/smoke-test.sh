@@ -8,7 +8,9 @@ export DUMP_MAINNET_DATA=1 RUST_LOG=info
 
 # define in addition
 # RPC_HTTP_URL="http://fcs-ams1._peer.internal:18899" 
-
+# for eclipse
+# export ECLIPSE=true
+# export DISABLE_COMRPESSED_GPA=true
 
 # saber
 DUMP_SABER_START=$(date)

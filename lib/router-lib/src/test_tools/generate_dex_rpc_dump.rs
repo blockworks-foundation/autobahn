@@ -227,7 +227,7 @@ pub async fn run_dump_swap_ix_with_custom_amount(
             continue;
         };
 
-        debug!(
+        println!(
             "#{} || quote: {} => {} : {} => {}",
             success,
             id.input_mint(),

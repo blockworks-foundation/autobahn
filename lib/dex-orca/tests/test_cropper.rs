@@ -8,6 +8,16 @@ use router_lib::test_tools::{generate_dex_rpc_dump, rpc};
 
 #[tokio::test]
 async fn test_dump_input_data_cropper() -> anyhow::Result<()> {
+    let is_eclipse = std::env::var("ECLIPSE")
+        .map(|x| {
+            let value: bool = x.parse().unwrap();
+            value
+        })
+        .unwrap_or_default();
+    if is_eclipse {
+        // crooper is not yet on eclipse
+        return Ok(());
+    }
     let options = HashMap::from([
         (
             "program_id".to_string(),
