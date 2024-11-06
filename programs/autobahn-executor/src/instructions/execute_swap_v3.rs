@@ -1,4 +1,5 @@
 use crate::logs::{emit_stack, SwapEvent};
+use crate::token;
 use crate::utils::{read_bytes, read_u64, read_u8, read_ux16};
 use solana_program::account_info::AccountInfo;
 use solana_program::entrypoint::ProgramResult;
@@ -35,13 +36,13 @@ pub fn execute_swap_v3(
     );
 
     let mut in_amount = 0u64;
-    let mut in_mint = crate::get_mint(&accounts[0])?;
+    let mut in_mint = token::get_mint(&accounts[0])?;
     let mut ix_account_index = 1usize;
     let mut ext_instruction_data = instruction_data;
 
     let mut input_amount = 0u64;
     let mut input_mint = Pubkey::default();
-    let input_token_account_balance = crate::get_balance(&accounts[0])?;
+    let input_token_account_balance = token::get_balance(&accounts[0])?;
     let mut output_amount = 0u64;
     let mut output_mint = Pubkey::default();
 
@@ -79,14 +80,14 @@ pub fn execute_swap_v3(
         };
 
         let ix_token_account = &ix_accounts[0];
-        let balance_before = crate::get_balance(ix_token_account)?;
+        let balance_before = token::get_balance(ix_token_account)?;
         invoke(&instruction, &ix_accounts)?;
-        let balance_after = crate::get_balance(ix_token_account)?;
+        let balance_after = token::get_balance(ix_token_account)?;
         let out_amount = balance_after - balance_before;
-        let out_mint = crate::get_mint(ix_token_account)?;
+        let out_mint = token::get_mint(ix_token_account)?;
 
         if ix_index == 0 {
-            input_amount = input_token_account_balance - crate::get_balance(&accounts[0])?;
+            input_amount = input_token_account_balance - token::get_balance(&accounts[0])?;
             input_mint = in_mint;
         }
 

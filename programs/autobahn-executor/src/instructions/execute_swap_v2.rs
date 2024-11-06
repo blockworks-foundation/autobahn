@@ -1,3 +1,4 @@
+use crate::token;
 use crate::utils::{read_bytes, read_u64, read_u8, read_ux16};
 use solana_program::account_info::AccountInfo;
 use solana_program::entrypoint::ProgramResult;
@@ -69,9 +70,9 @@ pub fn execute_swap_v2(
         };
 
         let ix_token_account = &ix_accounts[0];
-        let balance_before = crate::get_balance(ix_token_account)?;
+        let balance_before = token::get_balance(ix_token_account)?;
         invoke(&instruction, &ix_accounts)?;
-        let balance_after = crate::get_balance(ix_token_account)?;
+        let balance_after = token::get_balance(ix_token_account)?;
         in_amount = balance_after - balance_before;
         ext_instruction_data = instruction_data;
         ix_account_index += ix_accounts.len();
