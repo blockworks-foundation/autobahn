@@ -310,10 +310,17 @@ pub async fn fetch_all_whirlpools(
         .await?;
     let result = whirlpools
         .iter()
-        .map(|account| {
-            let whirlpool: Whirlpool =
-                AnchorDeserialize::deserialize(&mut &account.data[8..]).unwrap();
-            (account.pubkey, whirlpool)
+        .filter_map(|account| {
+            let pubkey = account.pubkey;
+            let whirlpool: Result<Whirlpool, std::io::Error> =
+                AnchorDeserialize::deserialize(&mut &account.data[8..]);
+            match whirlpool {
+                Ok(whirlpool) => Some((account.pubkey, whirlpool)),
+                Err(e) => {
+                    error!("Error deserializing whirlpool account : {pubkey:?} error: {e:?}");
+                    None
+                }
+            }
         })
         .collect_vec();
     Ok(result)

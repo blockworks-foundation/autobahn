@@ -207,6 +207,47 @@ pub async fn get_compressed_program_account_rpc(
 
 // called on startup to get the required accounts, few calls with some 100 thousand accounts
 #[tracing::instrument(skip_all, level = "trace")]
+pub async fn get_uncompressed_program_account_rpc(
+    rpc_client: &RpcClient,
+    filters: &HashSet<Pubkey>,
+    config: RpcProgramAccountsConfig,
+) -> anyhow::Result<(u64, Vec<AccountWrite>)> {
+    let slot = rpc_client.get_slot().await?;
+    let config = RpcProgramAccountsConfig {
+        with_context: Some(true),
+        account_config: RpcAccountInfoConfig {
+            encoding: Some(UiAccountEncoding::Base64),
+            min_context_slot: None,
+            commitment: config.account_config.commitment,
+            data_slice: config.account_config.data_slice,
+        },
+        filters: config.filters,
+    };
+
+    let mut snap_result = vec![];
+    let mut min_slot = u64::MAX;
+
+    // use getGPA compressed if available
+    for program_id in filters.iter() {
+        info!("gPA for {}", program_id);
+        min_slot = slot.min(min_slot);
+        let account_snapshot = rpc_client
+            .get_program_accounts_with_config(&program_id, config.clone())
+            .await
+            .map_err_anyhow()?;
+        tracing::log::debug!("gpa snapshot received {}", program_id);
+
+        let iter = account_snapshot.iter().map(|(pk, account)| {
+            account_write_from(*pk, slot, SNAP_ACCOUNT_WRITE_VERSION, account.clone())
+        });
+        snap_result.extend(iter);
+    }
+
+    Ok((min_slot, snap_result))
+}
+
+// called on startup to get the required accounts, few calls with some 100 thousand accounts
+#[tracing::instrument(skip_all, level = "trace")]
 pub async fn get_uncompressed_program_account(
     rpc_url: &str,
     program_id: String,

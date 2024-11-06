@@ -194,7 +194,6 @@ pub trait DexInterface: Sync + Send {
     /// simulation tests.
     fn program_ids(&self) -> HashSet<Pubkey>;
 
-
     /// Initializes an Edge from ChainData (production) or BanksClient (test).
     /// The Edge will be dropped once a new Edge for the same EdgeIndentifier
     /// has been initialized. After calling initialize the DexInterface needs

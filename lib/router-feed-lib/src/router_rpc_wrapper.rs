@@ -9,7 +9,10 @@ use solana_sdk::account::Account;
 use solana_sdk::pubkey::Pubkey;
 
 use crate::account_write::AccountWrite;
-use crate::get_program_account::{fetch_multiple_accounts, get_compressed_program_account_rpc};
+use crate::get_program_account::{
+    fetch_multiple_accounts, get_compressed_program_account_rpc,
+    get_uncompressed_program_account_rpc,
+};
 use crate::router_rpc_client::RouterRpcClientTrait;
 
 pub struct RouterRpcWrapper {
@@ -52,10 +55,21 @@ impl RouterRpcClientTrait for RouterRpcWrapper {
         pubkey: &Pubkey,
         config: RpcProgramAccountsConfig,
     ) -> anyhow::Result<Vec<AccountWrite>> {
-        Ok(
-            get_compressed_program_account_rpc(&self.rpc, &HashSet::from([*pubkey]), config)
-                .await?
-                .1,
-        )
+        let disable_compressed = std::env::var::<String>("DISABLE_COMRPESSED_GPA".to_string())
+            .unwrap_or("false".to_string());
+        let disable_compressed: bool = disable_compressed.trim().parse().unwrap();
+        if disable_compressed {
+            Ok(
+                get_uncompressed_program_account_rpc(&self.rpc, &HashSet::from([*pubkey]), config)
+                    .await?
+                    .1,
+            )
+        } else {
+            Ok(
+                get_compressed_program_account_rpc(&self.rpc, &HashSet::from([*pubkey]), config)
+                    .await?
+                    .1,
+            )
+        }
     }
 }

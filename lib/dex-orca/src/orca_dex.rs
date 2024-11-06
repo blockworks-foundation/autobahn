@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anchor_lang::Id;
 use anchor_spl::token::spl_token;
-use anchor_spl::token::spl_token::state::AccountState;
+use anchor_spl::token::spl_token::state::{Account, AccountState};
 use anchor_spl::token_2022::Token2022;
 use anyhow::Context;
 use itertools::Itertools;
@@ -229,7 +229,12 @@ impl OrcaDex {
             .iter()
             .filter(|x| {
                 x.1.owner == Token2022::id()
-                    || spl_token::state::Account::unpack(x.1.data()).unwrap().state
+                    || spl_token::state::Account::unpack(x.1.data())
+                        .unwrap_or(Account {
+                            state: AccountState::Frozen,
+                            ..Default::default()
+                        })
+                        .state
                         == AccountState::Frozen
             })
             .map(|x| x.0)
@@ -246,7 +251,9 @@ impl OrcaDex {
         // TODO: actually need to dynamically adjust subscriptions based on the tick?
         let tick_arrays = filtered_pools
             .iter()
-            .map(|(pk, wp)| whirlpool_tick_array_pks(wp, pk, program_id))
+            .map(|(pk, wp)| {
+                whirlpool_tick_array_pks(wp, pk, program_id)
+            })
             .collect_vec();
 
         let edge_pairs = filtered_pools
