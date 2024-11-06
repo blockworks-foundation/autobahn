@@ -23,7 +23,7 @@ jobs:
 
       - name: Verifiable Build
         run: |
-          anchor build --verifiable --docker-image backpackapp/build:v0.28.0 --solana-version 1.17.34 --env GITHUB_SHA --env GITHUB_REF_NAME
+          anchor build --verifiable --program-name ${{ env.APP_NAME }} --docker-image backpackapp/build:v0.28.0 --solana-version 1.17.34 --env GITHUB_SHA --env GITHUB_REF_NAME
 
       - name: Generate Checksum
         run: |
