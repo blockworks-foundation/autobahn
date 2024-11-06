@@ -57,6 +57,7 @@ max_path_length = 3
 retain_path_count = 5
 max_edge_per_pair = 5
 max_edge_per_cold_pair = 2
+slot_excessive_lag_max_duration_secs = 1600
 
 [server]
 address = "[::]:8888"
