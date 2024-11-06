@@ -516,7 +516,14 @@ async fn get_balance(
     mint: Pubkey,
     is_2022: bool,
 ) -> anyhow::Result<u64> {
-    let ata_address = get_associated_token_address(&owner, &mint);
+    let token_program_id = if is_2022 {
+        spl_token_2022::ID
+    } else {
+        spl_token::ID
+    };
+
+    let ata_address =
+        get_associated_token_address_with_program_id(&owner, &mint, &token_program_id);
 
     let Some(ata) = ctx.get_account(&ata_address) else {
         return Ok(0);
@@ -628,6 +635,7 @@ fn setup_test_chain(clock: &Clock, dump: &ExecutionDump) -> anyhow::Result<LiteS
     program_test.set_sysvar(clock);
 
     initialize_accounts(&mut program_test, dump)?;
+
     let path = find_file(format!("autobahn_executor.so").as_str()).unwrap();
     log::debug!("Adding program: {:?} at {path:?}", autobahn_executor::ID);
     program_test.add_program_from_file(autobahn_executor::ID, path)?;

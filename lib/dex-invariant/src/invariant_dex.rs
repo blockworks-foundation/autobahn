@@ -246,11 +246,10 @@ impl DexInterface for InvariantDex {
         let banned_reserves = vaults
             .iter()
             .filter(|(_, reserve)| {
-                reserve.owner == Token2022::id()
-                    || spl_token::state::Account::unpack(reserve.data())
-                        .unwrap()
-                        .state
-                        == AccountState::Frozen
+                spl_token::state::Account::unpack(reserve.data())
+                    .unwrap()
+                    .state
+                    == AccountState::Frozen
             })
             .map(|(pk, _)| pk)
             .collect::<HashSet<_>>();

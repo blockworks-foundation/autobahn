@@ -691,6 +691,7 @@ dependencies = [
  "solana-sdk",
  "solana-security-txt",
  "spl-token 3.5.0",
+ "spl-token-2022 1.0.0",
  "test-case",
  "tokio",
 ]
@@ -718,6 +719,7 @@ dependencies = [
  "chrono",
  "clap 3.2.25",
  "dex-infinity",
+ "dex-invariant",
  "dex-openbook-v2",
  "dex-orca",
  "dex-raydium",

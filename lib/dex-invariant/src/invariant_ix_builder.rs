@@ -1,12 +1,13 @@
 use crate::internal::accounts::{InvariantSwapAccounts, InvariantSwapParams};
 use crate::invariant_edge::{InvariantEdge, InvariantEdgeIdentifier, InvariantSimulationParams};
-use anchor_spl::associated_token::get_associated_token_address;
+use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use anyhow::Context;
 use invariant_types::math::{get_max_sqrt_price, get_min_sqrt_price};
 use router_lib::dex::{AccountProviderView, DexEdgeIdentifier, SwapInstruction};
 use sha2::{Digest, Sha256};
 use solana_program::instruction::Instruction;
 use solana_program::pubkey::Pubkey;
+use solana_sdk::account::ReadableAccount;
 
 pub fn build_swap_ix(
     id: &InvariantEdgeIdentifier,
@@ -21,9 +22,18 @@ pub fn build_swap_ix(
 
     let (source_mint, destination_mint) = (id.input_mint(), id.output_mint());
 
+    let source_acc = chain_data.account(&source_mint)?.account;
+    let dest_acc = chain_data.account(&destination_mint)?.account;
+
+    let source_owner = source_acc.owner();
+    let destination_owner = dest_acc.owner();
     let (source_account, destination_account) = (
-        get_associated_token_address(wallet_pk, &source_mint),
-        get_associated_token_address(wallet_pk, &destination_mint),
+        get_associated_token_address_with_program_id(wallet_pk, &source_mint, &source_owner),
+        get_associated_token_address_with_program_id(
+            wallet_pk,
+            &destination_mint,
+            &destination_owner,
+        ),
     );
 
     let sqrt_price_limit = if id.x_to_y {

@@ -29,7 +29,7 @@ impl std::fmt::Display for TrackableError {
 }
 impl std::error::Error for TrackableError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None   
+        None
     }
 }
 

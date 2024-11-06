@@ -1,23 +1,16 @@
 use solana_program::account_info::AccountInfo;
 use solana_program::entrypoint::ProgramResult;
-use solana_program::program::invoke;
 use solana_program::program_error::ProgramError;
-use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
-use solana_program::rent::Rent;
 use solana_program::system_program;
-use solana_program::sysvar::Sysvar;
-
-use crate::create_pda::create_pda_account;
 
 use crate::logs::{emit_stack, CreateReferralLog};
+use crate::token;
 
 pub fn execute_create_referral(accounts: &[AccountInfo], instruction_data: &[u8]) -> ProgramResult {
     if let [payer, referrer, vault, mint, system_program, token_program] = accounts {
         // verify token program is passed
-        if !spl_token::ID.eq(token_program.key) {
-            return Err(ProgramError::IncorrectProgramId);
-        }
+        token::verify_program_id(token_program.key)?;
 
         // verify system program is passed
         if !system_program::ID.eq(system_program.key) {
@@ -38,25 +31,14 @@ pub fn execute_create_referral(accounts: &[AccountInfo], instruction_data: &[u8]
             return Err(ProgramError::InvalidSeeds);
         }
 
-        create_pda_account(
+        token::intialize(
             payer,
-            &Rent::get()?,
-            spl_token::state::Account::LEN,
-            &spl_token::ID,
             system_program,
+            token_program,
+            mint,
             vault,
             &vault_seeds,
         )?;
-
-        let initialize_ix = spl_token::instruction::initialize_account3(
-            &spl_token::ID,
-            vault.key,
-            mint.key,
-            vault.key,
-        )?;
-
-        let initialize_account_infos = [vault.clone(), mint.clone(), token_program.clone()];
-        invoke(&initialize_ix, &initialize_account_infos)?;
 
         emit_stack(CreateReferralLog {
             referee: *payer.key,

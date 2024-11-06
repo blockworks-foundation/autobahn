@@ -298,6 +298,14 @@ async fn main() -> anyhow::Result<()> {
             true,
             &vec![]
         ),
+        dex::generic::build_dex!(
+            dex_invariant::InvariantDex::initialize(&mut router_rpc, HashMap::new()).await?,
+            &mango_data,
+            config.invariant.enabled,
+            config.invariant.take_all_mints,
+            config.invariant.add_mango_tokens,
+            &config.invariant.mints
+        ),
     ]
     .into_iter()
     .flatten()
@@ -680,7 +688,11 @@ fn handle_updated_account(
         }
 
         // ignore failing sends when there are no receivers
-        let _err = account_update_sender.send((account_write.pubkey, account_write.owner, account_write.slot));
+        let _err = account_update_sender.send((
+            account_write.pubkey,
+            account_write.owner,
+            account_write.slot,
+        ));
     }
 
     match update {

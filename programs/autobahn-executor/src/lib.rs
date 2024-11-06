@@ -2,16 +2,16 @@ pub mod create_pda;
 mod instructions;
 pub mod logs;
 pub mod swap_ix;
+pub mod token;
 pub mod utils;
 
 use instructions::{
-    execute_charge_fees, execute_create_referral, execute_openbook_v2_swap, execute_swap_v2,
-    execute_swap_v3, execute_withdraw_referral_fees,
+    execute_charge_fees, execute_charge_fees_v2, execute_create_referral, execute_openbook_v2_swap,
+    execute_swap_v2, execute_swap_v3, execute_withdraw_referral_fees,
 };
 use solana_program::declare_id;
 use solana_program::entrypoint::ProgramResult;
 use solana_program::program_error::ProgramError;
-use solana_program::program_pack::Pack;
 use solana_program::{account_info::AccountInfo, pubkey::Pubkey};
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -41,6 +41,7 @@ pub enum Instructions {
     ChargeFees = 4,
     CreateReferral = 5,
     WithdrawReferral = 6,
+    ChargeFeesV2 = 7,
 }
 
 pub fn process_instruction(
@@ -70,16 +71,9 @@ pub fn process_instruction(
         x if x == Instructions::WithdrawReferral as u8 => {
             execute_withdraw_referral_fees(accounts, &instruction_data[1..])
         }
+        x if x == Instructions::ChargeFeesV2 as u8 => {
+            execute_charge_fees_v2(accounts, &instruction_data[1..])
+        }
         _ => Err(ProgramError::InvalidInstructionData),
     }
-}
-
-fn get_balance(account: &AccountInfo) -> Result<u64, ProgramError> {
-    let token = spl_token::state::Account::unpack(&account.try_borrow_data()?)?;
-    Ok(token.amount)
-}
-
-fn get_mint(account: &AccountInfo) -> Result<Pubkey, ProgramError> {
-    let token = spl_token::state::Account::unpack(&account.try_borrow_data()?)?;
-    Ok(token.mint)
 }

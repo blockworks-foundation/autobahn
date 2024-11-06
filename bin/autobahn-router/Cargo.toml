@@ -72,12 +72,15 @@ lazy_static = "1.5.0"
 hdrhistogram = "7.5.4"
 indexmap = "2.0.0"
 router-lib = { path = "../../lib/router-lib/", version = "0.0.1" }
+
 dex-orca = { path = "../../lib/dex-orca/", version = "0.0.1" }
 dex-raydium-cp = { path = "../../lib/dex-raydium-cp/", version = "0.0.1" }
 dex-raydium = { path = "../../lib/dex-raydium/", version = "0.0.1" }
 dex-saber = { path = "../../lib/dex-saber/", version = "0.0.1" }
 dex-infinity = { path = "../../lib/dex-infinity/", version = "0.0.1" }
 dex-openbook-v2 = { path = "../../lib/dex-openbook-v2/", version = "0.0.1" }
+dex-invariant = { path = "../../lib/dex-invariant", version = "0.0.1" }
+
 router-config-lib = { path = "../../lib/router-config-lib" }
 router-feed-lib = { path = "../../lib/router-feed-lib" }
 spl-associated-token-account = { version = "1.0.5",features = ["no-entrypoint"] }

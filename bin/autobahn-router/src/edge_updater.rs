@@ -382,17 +382,16 @@ impl EdgeUpdater {
             return true;
         }
         match &self.dex.subscription_mode {
-            DexSubscriptionMode::Accounts(accounts) => {
-                return accounts.contains(pk)
-            },
-            DexSubscriptionMode::Disabled => {
-                false
-            },
+            DexSubscriptionMode::Accounts(accounts) => return accounts.contains(pk),
+            DexSubscriptionMode::Disabled => false,
             DexSubscriptionMode::Programs(programs) => {
                 programs.contains(pk) || programs.contains(owner)
-            },
+            }
             DexSubscriptionMode::Mixed(m) => {
-                m.accounts.contains(pk) || m.token_accounts_for_owner.contains(pk) || m.programs.contains(pk) || m.programs.contains(owner)
+                m.accounts.contains(pk)
+                    || m.token_accounts_for_owner.contains(pk)
+                    || m.programs.contains(pk)
+                    || m.programs.contains(owner)
             }
         }
     }
