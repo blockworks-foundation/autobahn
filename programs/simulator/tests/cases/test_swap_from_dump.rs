@@ -628,9 +628,10 @@ fn setup_test_chain(clock: &Clock, dump: &ExecutionDump) -> anyhow::Result<LiteS
     program_test.set_sysvar(clock);
 
     initialize_accounts(&mut program_test, dump)?;
-    let path = find_file(format!("autobahn_executor.so").as_str()).unwrap();
-    log::debug!("Adding program: {:?} at {path:?}", autobahn_executor::ID);
-    program_test.add_program_from_file(autobahn_executor::ID, path)?;
+    
+    let autobahn_path = option_env!("AUTOBAHN_EXECUTOR").map(|x| PathBuf::from(x)).unwrap_or(find_file(format!("autobahn_executor.so").as_str()).unwrap());
+    log::info!("Adding program: {:?} at {autobahn_path:?}", autobahn_executor::ID);
+    program_test.add_program_from_file(autobahn_executor::ID, autobahn_path)?;
 
     // TODO: make this dynamic based on routes
     let mut cb = solana_program_runtime::compute_budget::ComputeBudget::default();
