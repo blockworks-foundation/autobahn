@@ -11,6 +11,7 @@ env:
   RUSTC_WRAPPER: sccache
   SCCACHE_CACHE_SIZE: "1G"
   SOLANA_VERSION: '1.18.8'
+  CI: true
 
 jobs:
   build_and_test:
