@@ -6,7 +6,8 @@ pub mod token;
 pub mod utils;
 
 use instructions::{
-    execute_charge_fees, execute_charge_fees_v2, execute_create_referral, execute_openbook_v2_swap, execute_swap_v2, execute_swap_v3, execute_withdraw_referral_fees
+    execute_charge_fees, execute_charge_fees_v2, execute_create_referral, execute_openbook_v2_swap,
+    execute_swap_v2, execute_swap_v3, execute_withdraw_referral_fees,
 };
 use solana_program::declare_id;
 use solana_program::entrypoint::ProgramResult;

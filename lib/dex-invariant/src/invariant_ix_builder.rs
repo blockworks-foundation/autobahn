@@ -29,7 +29,11 @@ pub fn build_swap_ix(
     let destination_owner = dest_acc.owner();
     let (source_account, destination_account) = (
         get_associated_token_address_with_program_id(wallet_pk, &source_mint, &source_owner),
-        get_associated_token_address_with_program_id(wallet_pk, &destination_mint, &destination_owner)
+        get_associated_token_address_with_program_id(
+            wallet_pk,
+            &destination_mint,
+            &destination_owner,
+        ),
     );
 
     let sqrt_price_limit = if id.x_to_y {

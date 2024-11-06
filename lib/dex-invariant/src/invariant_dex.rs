@@ -4,7 +4,10 @@ use std::{
 };
 
 use anchor_lang::{AnchorDeserialize, Id};
-use anchor_spl::{token::spl_token::{self, state::AccountState}, token_2022::Token2022};
+use anchor_spl::{
+    token::spl_token::{self, state::AccountState},
+    token_2022::Token2022,
+};
 use anyhow::{Context, Ok};
 use async_trait::async_trait;
 use invariant_types::{
@@ -243,10 +246,10 @@ impl DexInterface for InvariantDex {
         let banned_reserves = vaults
             .iter()
             .filter(|(_, reserve)| {
-                        spl_token::state::Account::unpack(reserve.data())
-                        .unwrap()
-                        .state
-                        == AccountState::Frozen
+                spl_token::state::Account::unpack(reserve.data())
+                    .unwrap()
+                    .state
+                    == AccountState::Frozen
             })
             .map(|(pk, _)| pk)
             .collect::<HashSet<_>>();

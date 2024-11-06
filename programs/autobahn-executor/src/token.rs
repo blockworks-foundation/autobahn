@@ -10,12 +10,12 @@ use spl_token_2022::extension::{BaseStateWithExtensions, ExtensionType, StateWit
 use crate::create_pda::create_pda_account;
 
 pub fn get_balance(account: &AccountInfo) -> Result<u64, ProgramError> {
-    match account.owner {
-        &spl_token::ID => {
+    match *account.owner {
+        spl_token::ID => {
             let token = spl_token::state::Account::unpack(&account.try_borrow_data()?)?;
             Ok(token.amount)
         }
-        &spl_token_2022::ID => {
+        spl_token_2022::ID => {
             let token = spl_token_2022::state::Account::unpack(&account.try_borrow_data()?)?;
             Ok(token.amount)
         }
@@ -24,12 +24,12 @@ pub fn get_balance(account: &AccountInfo) -> Result<u64, ProgramError> {
 }
 
 pub fn get_mint(account: &AccountInfo) -> Result<Pubkey, ProgramError> {
-    match account.owner {
-        &spl_token::ID => {
+    match *account.owner {
+        spl_token::ID => {
             let token = spl_token::state::Account::unpack(&account.try_borrow_data()?)?;
             Ok(token.mint)
         }
-        &spl_token_2022::ID => {
+        spl_token_2022::ID => {
             let token: spl_token_2022::state::Account =
                 spl_token_2022::state::Account::unpack(&account.try_borrow_data()?)?;
             Ok(token.mint)
@@ -39,12 +39,12 @@ pub fn get_mint(account: &AccountInfo) -> Result<Pubkey, ProgramError> {
 }
 
 pub fn get_owner(account: &AccountInfo) -> Result<Pubkey, ProgramError> {
-    match account.owner {
-        &spl_token::ID => {
+    match *account.owner {
+        spl_token::ID => {
             let token = spl_token::state::Account::unpack(&account.try_borrow_data()?)?;
             Ok(token.owner)
         }
-        &spl_token_2022::ID => {
+        spl_token_2022::ID => {
             let token: spl_token_2022::state::Account =
                 spl_token_2022::state::Account::unpack(&account.try_borrow_data()?)?;
             Ok(token.owner)
@@ -61,9 +61,9 @@ pub fn intialize<'a>(
     account: &AccountInfo<'a>,
     seeds: &[&[u8]],
 ) -> Result<(), ProgramError> {
-    let space = match account.owner {
-        &spl_token::ID => Ok(spl_token::state::Account::LEN),
-        &spl_token_2022::ID => {
+    let space = match *account.owner {
+        spl_token::ID => Ok(spl_token::state::Account::LEN),
+        spl_token_2022::ID => {
             let mint_data = mint.data.borrow();
             let mint_with_extension =
                 StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data).unwrap();
@@ -127,9 +127,8 @@ pub fn transfer<'a>(
         }
         spl_token_2022::ID => {
             let mint_data = mint.try_borrow_data()?;
-            let mint_parsed = StateWithExtensions::<
-                spl_token_2022::state::Mint,
-            >::unpack(&mint_data)?;
+            let mint_parsed =
+                StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
             let transfer_ix = spl_token_2022::instruction::transfer_checked(
                 program.key,
                 source.key,
@@ -153,8 +152,8 @@ pub fn transfer<'a>(
 
 pub fn verify_program_id(address: &Pubkey) -> Result<(), ProgramError> {
     if spl_token::ID.eq(address) || spl_token_2022::ID.eq(address) {
-        return Ok(());
+        Ok(())
     } else {
-        return Err(ProgramError::IncorrectProgramId);
+        Err(ProgramError::IncorrectProgramId)
     }
 }

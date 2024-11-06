@@ -100,10 +100,10 @@ pub fn execute_swap_v3(
     }
 
     emit_stack(SwapEvent {
-        input_mint: input_mint,
-        input_amount: input_amount,
-        output_mint: output_mint,
-        output_amount: output_amount,
+        input_mint,
+        input_amount,
+        output_mint,
+        output_amount,
     })?;
 
     if in_amount < min_out_amount {

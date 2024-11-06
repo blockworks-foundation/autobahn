@@ -251,9 +251,7 @@ impl OrcaDex {
         // TODO: actually need to dynamically adjust subscriptions based on the tick?
         let tick_arrays = filtered_pools
             .iter()
-            .map(|(pk, wp)| {
-                whirlpool_tick_array_pks(wp, pk, program_id)
-            })
+            .map(|(pk, wp)| whirlpool_tick_array_pks(wp, pk, program_id))
             .collect_vec();
 
         let edge_pairs = filtered_pools

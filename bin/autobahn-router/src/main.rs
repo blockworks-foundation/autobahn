@@ -305,7 +305,7 @@ async fn main() -> anyhow::Result<()> {
             config.invariant.take_all_mints,
             config.invariant.add_mango_tokens,
             &config.invariant.mints
-        )
+        ),
     ]
     .into_iter()
     .flatten()
@@ -688,7 +688,11 @@ fn handle_updated_account(
         }
 
         // ignore failing sends when there are no receivers
-        let _err = account_update_sender.send((account_write.pubkey, account_write.owner, account_write.slot));
+        let _err = account_update_sender.send((
+            account_write.pubkey,
+            account_write.owner,
+            account_write.slot,
+        ));
     }
 
     match update {

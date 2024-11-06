@@ -534,7 +534,6 @@ pub fn cross_tick_no_fee_growth_update(tick: &Tick, pool: &mut Pool) -> Result<(
     Ok(())
 }
 
-
 pub fn get_max_tick(tick_spacing: u16) -> TrackableResult<i32> {
     let limit_by_space = TICK_LIMIT
         .checked_sub(1)
