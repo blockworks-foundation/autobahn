@@ -843,6 +843,14 @@ impl Routing {
             warn!(valid_edge_count, skipped_bad_price_impact, "pruning");
         }
 
+        // for mint_vec in out_edges_per_mint_index.iter() {
+        //     for mint in mint_vec {
+        //         let input_mint = mint_to_index.iter().filter(|(_, x)| **x==mint.source_node).map(|(pk,_)| *pk).collect_vec();
+        //         let output_mint = mint_to_index.iter().filter(|(_, x)| **x==mint.target_node).map(|(pk,_)| *pk).collect_vec();
+        //         info!("input_mint {:?} {:?}", input_mint, output_mint );
+        //     }
+        // }
+
         (valid_edge_count, out_edges_per_mint_index)
     }
 
