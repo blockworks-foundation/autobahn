@@ -75,11 +75,29 @@ pub fn process_instruction(
 }
 
 fn get_balance(account: &AccountInfo) -> Result<u64, ProgramError> {
-    let token = spl_token::state::Account::unpack(&account.try_borrow_data()?)?;
-    Ok(token.amount)
+    match account.owner {
+        &spl_token::ID => {
+            let token = spl_token::state::Account::unpack(&account.try_borrow_data()?)?;
+            Ok(token.amount)
+        }
+        &spl_token_2022::ID => {
+            let token = spl_token_2022::state::Account::unpack(&account.try_borrow_data()?)?;
+            Ok(token.amount)
+        }
+        _ => Err(ProgramError::IllegalOwner),
+    }
 }
 
 fn get_mint(account: &AccountInfo) -> Result<Pubkey, ProgramError> {
-    let token = spl_token::state::Account::unpack(&account.try_borrow_data()?)?;
-    Ok(token.mint)
+    match account.owner {
+        &spl_token::ID => {
+            let token = spl_token::state::Account::unpack(&account.try_borrow_data()?)?;
+            Ok(token.mint)
+        }
+        &spl_token_2022::ID => {
+            let token: spl_token_2022::state::Account = spl_token_2022::state::Account::unpack(&account.try_borrow_data()?)?;
+            Ok(token.mint)
+        }
+        _ => Err(ProgramError::IllegalOwner),
+    }
 }
