@@ -12,10 +12,20 @@ use std::sync::Arc;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SwapInstruction {
+    /// Instruction to be executed by the user to swap through an edge.
     pub instruction: Instruction,
+    /// Address of the user's associated token account that will receive
+    /// the proceeds of the swap after invoking instruction.
     pub out_pubkey: Pubkey,
+    /// Mint of the tokens received from the swap.
     pub out_mint: Pubkey,
+    /// Byte offset in Instruction.data that the onchain executor program
+    /// will use to replace the input amount with the proceeds of the
+    /// previous swap before cpi-invocation of this edge.
+    /// instruction.data\[in_amount_offset..in_amount_offset+8\] = in_amount
     pub in_amount_offset: u16,
+    /// Conservative upper bound estimate of compute cost. If it is too low
+    /// transactions will fail, if it is too high, they will confirm slower.
     pub cu_estimate: Option<u32>,
 }
 
@@ -144,6 +154,16 @@ pub type AccountProviderView = Arc<dyn AccountProvider>;
 
 #[async_trait::async_trait]
 pub trait DexInterface: Sync + Send {
+    /// Called on router boot, with the options read from the dex adapters's
+    /// config file. Can use RPC to initialize. The result contains usually
+    /// self. After calling initialize the returned DexInterface needs to be
+    /// able to respond the following methods:
+    /// - name()
+    /// - subscription_mode()
+    /// - edges_per_pk()
+    /// - program_ids()
+    /// - supports_exact_out()
+    /// - load()
     async fn initialize(
         rpc: &mut RouterRpcClient,
         options: HashMap<String, String>,
@@ -153,18 +173,42 @@ pub trait DexInterface: Sync + Send {
 
     fn name(&self) -> String;
 
+    /// Defines the kind of grpc/quic subscription that should be established
+    /// to the RPC/Validator to keep this adapter updated. Also defines the
+    /// accounts included in a snapshot for simulation tests.
+    /// Right now the subscription mode is static per adapter and changes post
+    /// initialization have no effect. This might change in the future.
     fn subscription_mode(&self) -> DexSubscriptionMode;
 
+    /// Defines the relationship between account updates and which
+    /// DexEdgeIndentifiers will be reloaded. Once a batch of account updates
+    /// has been added to ChainData the corresponding edge identifies will be
+    /// passed to DexInterface::load().
+    /// The identifies are a symbolic representation for edges, meaning they
+    /// should not store any mutable data related to the generation of actual
+    /// quotes, but merely expose the immutable description of the possibility
+    /// to quote a trade from input mint to output mint.
     fn edges_per_pk(&self) -> HashMap<Pubkey, Vec<Arc<dyn DexEdgeIdentifier>>>;
+
+    /// Defines the programs that should be included in a snapshot for
+    /// simulation tests.
     fn program_ids(&self) -> HashSet<Pubkey>;
 
+    /// Initializes an Edge from ChainData (production) or BanksClient (test).
+    /// The Edge will be dropped once a new Edge for the same EdgeIndentifier
+    /// has been initialized. After calling initialize the DexInterface needs
+    /// to be able to respond to quote() and supports_exact_out() calls that
+    /// pass this Edge. It can store immutable data locally.
+    /// Performance is critical, optimize implementations well.
     fn load(
         &self,
         id: &Arc<dyn DexEdgeIdentifier>,
-        // TODO: put behind interface so we can adapt for BanksClient
         chain_data: &AccountProviderView,
     ) -> anyhow::Result<Arc<dyn DexEdge>>;
 
+    /// Calculates the output amount for a given input amount, will be called
+    /// multiple times after an edge has been loaded.
+    /// Performance is critical, optimize implementations well.
     fn quote(
         &self,
         id: &Arc<dyn DexEdgeIdentifier>,
@@ -173,19 +217,9 @@ pub trait DexInterface: Sync + Send {
         in_amount: u64,
     ) -> anyhow::Result<Quote>;
 
-    fn build_swap_ix(
-        &self,
-        id: &Arc<dyn DexEdgeIdentifier>,
-        // TODO: put behind interface so we can adapt for BanksClient
-        chain_data: &AccountProviderView,
-        wallet_pk: &Pubkey,
-        in_amount: u64,
-        out_amount: u64,
-        max_slippage_bps: i32,
-    ) -> anyhow::Result<SwapInstruction>;
-
-    fn supports_exact_out(&self, id: &Arc<dyn DexEdgeIdentifier>) -> bool;
-
+    /// Calculates the input amount for a given output amount, will be called
+    /// multiple times after an edge has been loaded.
+    /// Performance is critical, optimize implementations well.
     fn quote_exact_out(
         &self,
         id: &Arc<dyn DexEdgeIdentifier>,
@@ -193,5 +227,27 @@ pub trait DexInterface: Sync + Send {
         chain_data: &AccountProviderView,
         out_amount: u64,
     ) -> anyhow::Result<Quote>;
-    // TODO: list of all program_ids to fetch for testing
+
+    /// Returns true, if the edge supports both quote() and quote_exact_out().
+    /// Returns false, if the edge only support quote().
+    fn supports_exact_out(&self, id: &Arc<dyn DexEdgeIdentifier>) -> bool;
+
+    /// Constructs a description for call-data passed to the executor program.
+    /// Once a route has been selected for the end-user to swap through, the
+    /// router will invoke DexInterface::build_swap_ix for every edge in the
+    /// route with with it's DexEdgeIdentifier rather than the initialized
+    /// DexEdge. The build_swap_ix implementation should use the most recent
+    /// data possible to avoid latency between account update, load & quote.
+    /// Exact-out is only used during route selection, onchain execution is
+    /// always using exact input amounts that get adjusted between edge
+    /// cpi-invocations using the in_amount_offset.
+    fn build_swap_ix(
+        &self,
+        id: &Arc<dyn DexEdgeIdentifier>,
+        chain_data: &AccountProviderView,
+        wallet_pk: &Pubkey,
+        in_amount: u64,
+        out_amount: u64,
+        max_slippage_bps: i32,
+    ) -> anyhow::Result<SwapInstruction>;
 }

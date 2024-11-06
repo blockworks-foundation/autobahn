@@ -1,17 +1,20 @@
-app = "router-2"
-primary_region = "ams"
+app = "router-eclipse"
+primary_region = "fra"
 kill_signal = "SIGTERM"
 kill_timeout = "30s"
 
 [build]
   dockerfile = 'bin/autobahn-router/Dockerfile'
 
+[build.args]
+  CONFIG_PATH="/app/bin/autobahn-router/template-config-eclipse.toml"
+
 [experimental]
   cmd = ["autobahn-router", "/usr/local/bin/template-config.toml"]
 
 [[vm]]
-  size = "performance-16x"
-  memory = "32gb"
+  size = "shared-cpu-4x"
+  memory = "8gb"
 
 [[restart]]
   policy = "always"

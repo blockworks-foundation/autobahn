@@ -99,6 +99,14 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::load(&args[1])?;
     let router_version = RouterVersion::OverestimateAmount;
 
+    if config.metrics.output_http {
+        let prom_bind_addr = config
+            .metrics
+            .prometheus_address
+            .clone()
+            .expect("prometheus_address must be set");
+        PrometheusSync::sync(prom_bind_addr);
+    }
     let hot_mints = Arc::new(RwLock::new(HotMintsCache::new(&config.hot_mints)));
 
     let mango_data = match mango::mango_fetcher::fetch_mango_data().await {
@@ -146,7 +154,7 @@ async fn main() -> anyhow::Result<()> {
     let (metadata_write_sender, metadata_write_receiver) =
         async_channel::unbounded::<FeedMetadata>();
     let (slot_sender, slot_receiver) = async_channel::unbounded::<SlotUpdate>();
-    let (account_update_sender, _) = broadcast::channel(1048576); // TODO this is huge, but init snapshot will completely spam this
+    let (account_update_sender, _) = broadcast::channel(4 * 1024 * 1024); // TODO this is huge, but init snapshot will completely spam this
 
     let chain_data = Arc::new(RwLock::new(ChainData::new()));
     start_chaindata_updating(
@@ -200,14 +208,6 @@ async fn main() -> anyhow::Result<()> {
         exit(-1);
     };
 
-    if config.metrics.output_http {
-        let prom_bind_addr = config
-            .metrics
-            .prometheus_address
-            .clone()
-            .expect("prometheus_address must be set");
-        let _prometheus = PrometheusSync::sync(prom_bind_addr);
-    }
     if config.metrics.output_stdout {
         warn!("metrics output to stdout is not supported yet");
     }
@@ -576,7 +576,7 @@ fn start_chaindata_updating(
     chain_data: ChainDataArcRw,
     account_writes: async_channel::Receiver<AccountOrSnapshotUpdate>,
     slot_updates: async_channel::Receiver<SlotUpdate>,
-    account_update_sender: broadcast::Sender<(Pubkey, u64)>,
+    account_update_sender: broadcast::Sender<(Pubkey, Pubkey, u64)>,
     mut exit: broadcast::Receiver<()>,
 ) -> JoinHandle<()> {
     use mango_feeds_connector::chain_data::SlotData;
@@ -643,7 +643,7 @@ fn handle_updated_account(
     most_recent_seen_slot: &mut u64,
     chain_data: &mut RwLockWriteGuard<ChainData>,
     update: AccountOrSnapshotUpdate,
-    account_update_sender: &broadcast::Sender<(Pubkey, u64)>,
+    account_update_sender: &broadcast::Sender<(Pubkey, Pubkey, u64)>,
 ) {
     use mango_feeds_connector::chain_data::AccountData;
     use solana_sdk::account::WritableAccount;
@@ -652,7 +652,7 @@ fn handle_updated_account(
     fn one_update(
         most_recent_seen_slot: &mut u64,
         chain_data: &mut RwLockWriteGuard<ChainData>,
-        account_update_sender: &broadcast::Sender<(Pubkey, u64)>,
+        account_update_sender: &broadcast::Sender<(Pubkey, Pubkey, u64)>,
         account_write: AccountWrite,
     ) {
         chain_data.update_account(
@@ -680,7 +680,7 @@ fn handle_updated_account(
         }
 
         // ignore failing sends when there are no receivers
-        let _err = account_update_sender.send((account_write.pubkey, account_write.slot));
+        let _err = account_update_sender.send((account_write.pubkey, account_write.owner, account_write.slot));
     }
 
     match update {

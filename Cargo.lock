@@ -681,7 +681,7 @@ dependencies = [
 
 [[package]]
 name = "autobahn-executor"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "bonfida-test-utils",
  "bytemuck",
@@ -1408,6 +1408,12 @@ checksum = "7ee52072ec15386f770805afd189a01c8841be8696bed250fa2f13c4c0d6dfb7"
 dependencies = [
  "generic-array 0.14.7",
 ]
+
+[[package]]
+name = "circular-buffer"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b67261db007b5f4cf8cba393c1a5c511a5cc072339ce16e12aeba1d7b9b77946"
 
 [[package]]
 name = "clap"
@@ -3948,6 +3954,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "01cda141df6706de531b6c46c3a33ecca755538219bd484262fa09410c13539c"
 
 [[package]]
+name = "litesvm"
+version = "0.1.0"
+source = "git+https://github.com/blockworks-foundation/litesvm.git?branch=v0.1.0+solana_1.7#4c884606289e484090be42a08b79dc3bc5f449f7"
+dependencies = [
+ "bincode",
+ "indexmap 2.2.6",
+ "itertools 0.12.1",
+ "log 0.4.21",
+ "solana-address-lookup-table-program",
+ "solana-bpf-loader-program",
+ "solana-compute-budget-program",
+ "solana-loader-v4-program",
+ "solana-program",
+ "solana-program-runtime",
+ "solana-sdk",
+ "solana-system-program",
+ "thiserror",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5392,7 +5418,7 @@ dependencies = [
 [[package]]
 name = "quic-geyser-client"
 version = "0.1.5"
-source = "git+https://github.com/blockworks-foundation/quic_geyser_plugin.git?branch=router_v1.17.29#8efcc200c795b1236675b161c04e5e65e00ace48"
+source = "git+https://github.com/blockworks-foundation/quic_geyser_plugin.git?branch=router_v1.17.29#594077ccebfde826920192c17b0e501bb185650e"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5409,10 +5435,11 @@ dependencies = [
 [[package]]
 name = "quic-geyser-common"
 version = "0.1.5"
-source = "git+https://github.com/blockworks-foundation/quic_geyser_plugin.git?branch=router_v1.17.29#8efcc200c795b1236675b161c04e5e65e00ace48"
+source = "git+https://github.com/blockworks-foundation/quic_geyser_plugin.git?branch=router_v1.17.29#594077ccebfde826920192c17b0e501bb185650e"
 dependencies = [
  "anyhow",
  "bincode",
+ "circular-buffer",
  "itertools 0.10.5",
  "log 0.4.21",
  "lz4",
@@ -6037,6 +6064,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_with 2.3.3",
+ "sha2 0.10.8",
  "solana-account-decoder",
  "solana-client",
  "solana-sdk",
@@ -6840,13 +6868,17 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "autobahn-executor",
+ "base64 0.12.3",
  "bincode",
  "bonfida-test-utils",
  "env_logger",
+ "litesvm",
  "log 0.4.21",
  "router-test-lib",
+ "sha2 0.10.8",
  "solana-address-lookup-table-program",
  "solana-program",
+ "solana-program-runtime",
  "solana-program-test",
  "solana-sdk",
  "spl-associated-token-account 1.1.3",
@@ -6854,6 +6886,8 @@ dependencies = [
  "spl-token-2022 1.0.0",
  "test-case",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

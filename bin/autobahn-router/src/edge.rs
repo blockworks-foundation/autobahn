@@ -272,7 +272,7 @@ impl EdgeState {
     }
 
     pub fn cached_price_exact_out_for(&self, out_amount: u64) -> Option<(f64, f64)> {
-        if !self.is_valid_out() {
+        if !self.is_valid() {
             return None;
         }
 
@@ -289,22 +289,6 @@ impl EdgeState {
     }
 
     pub fn is_valid(&self) -> bool {
-        if !self.is_valid {
-            return false;
-        }
-
-        if self.cooldown_until.is_some() {
-            // Do not check time here !
-            // We will reset "cooldown until" on first account update coming after cooldown
-            // So if this is not reset yet, it means that we didn't change anything
-            // No reason to be working again
-            return false;
-        }
-
-        true
-    }
-
-    pub fn is_valid_out(&self) -> bool {
         if !self.is_valid {
             return false;
         }

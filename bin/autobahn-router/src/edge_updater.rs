@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::task::JoinHandle;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, warn};
 
 #[derive(Clone)]
 pub struct Dex {
@@ -79,7 +79,7 @@ pub fn spawn_updater_job(
     register_mint_sender: async_channel::Sender<Pubkey>,
     ready_sender: async_channel::Sender<()>,
     mut slot_updates: broadcast::Receiver<u64>,
-    mut account_updates: broadcast::Receiver<(Pubkey, u64)>,
+    mut account_updates: broadcast::Receiver<(Pubkey, Pubkey, u64)>,
     mut metadata_updates: broadcast::Receiver<FeedMetadata>,
     mut price_updates: broadcast::Receiver<PriceUpdate>,
     mut exit: broadcast::Receiver<()>,
@@ -167,20 +167,19 @@ pub fn spawn_updater_job(
                     if !updater.invalidate_one(res) {
                         break 'drain_loop;
                     }
+                    // let mut batchsize: u32 = 0;
+                    // let started_at = Instant::now();
+                    // 'batch_loop: while let Ok(res) = account_updates.try_recv() {
+                    //     batchsize += 1;
+                    //     if !updater.invalidate_one(Ok(res)) {
+                    //         break 'drain_loop;
+                    //     }
 
-                    let mut batchsize: u32 = 0;
-                    let started_at = Instant::now();
-                    'batch_loop: while let Ok(res) = account_updates.try_recv() {
-                        batchsize += 1;
-                        if !updater.invalidate_one(Ok(res)) {
-                            break 'drain_loop;
-                        }
-
-                        // budget for microbatch
-                        if batchsize > 10 || started_at.elapsed() > Duration::from_micros(500) {
-                            break 'batch_loop;
-                        }
-                    }
+                    //     // budget for microbatch
+                    //     if batchsize > 10 || started_at.elapsed() > Duration::from_micros(500) {
+                    //         break 'batch_loop;
+                    //     }
+                    // }
                 },
                 Ok(price_upd) = price_updates.recv() => {
                     if let Some(impacted_edges) = updater.state.edges_per_mint.get(&price_upd.mint) {
@@ -242,14 +241,17 @@ impl EdgeUpdater {
                     Some(since) => {
                         if since.elapsed() > max_lag_duration {
                             panic!(
-                                "Lagging a lot {} for more than {}s, exiting..",
+                                "Lagging a lot {} for more than {}s, for dex {}..",
                                 lag,
-                                max_lag_duration.as_secs()
+                                max_lag_duration.as_secs(),
+                                self.dex.name,
                             );
                         }
                     }
                 }
                 return;
+            } else if state.slot_excessive_lagging_since.is_some() {
+                state.slot_excessive_lagging_since = None;
             }
         }
     }
@@ -309,9 +311,8 @@ impl EdgeUpdater {
         }
     }
 
-    fn invalidate_one(&mut self, res: Result<(Pubkey, u64), RecvError>) -> bool {
-        let state = &mut self.state;
-        let (pk, slot) = match res {
+    fn invalidate_one(&mut self, res: Result<(Pubkey, Pubkey, u64), RecvError>) -> bool {
+        let (pk, owner, slot) = match res {
             Ok(v) => v,
             Err(broadcast::error::RecvError::Closed) => {
                 error!("account update channel closed unexpectedly");
@@ -326,6 +327,11 @@ impl EdgeUpdater {
             }
         };
 
+        // check if we need the update
+        if !self.do_update(&pk, &owner) {
+            return true;
+        }
+        let state = &mut self.state;
         if let Some(impacted_edges) = self.dex.edges_per_pk.get(&pk) {
             for edge in impacted_edges {
                 state.dirty_edges.insert(edge.unique_id(), edge.clone());
@@ -333,7 +339,9 @@ impl EdgeUpdater {
         };
 
         state.received_account.insert(pk);
-        state.latest_slot_pending = slot;
+        if state.latest_slot_pending < slot {
+            state.latest_slot_pending = slot;
+        }
 
         self.check_readiness();
 
@@ -368,6 +376,27 @@ impl EdgeUpdater {
         }
     }
 
+    // ignore update if current dex does not need it
+    fn do_update(&mut self, pk: &Pubkey, owner: &Pubkey) -> bool {
+        if self.dex.edges_per_pk.contains_key(pk) {
+            return true;
+        }
+        match &self.dex.subscription_mode {
+            DexSubscriptionMode::Accounts(accounts) => {
+                return accounts.contains(pk)
+            },
+            DexSubscriptionMode::Disabled => {
+                false
+            },
+            DexSubscriptionMode::Programs(programs) => {
+                programs.contains(pk) || programs.contains(owner)
+            },
+            DexSubscriptionMode::Mixed(m) => {
+                m.accounts.contains(pk) || m.token_accounts_for_owner.contains(pk) || m.programs.contains(pk) || m.programs.contains(owner)
+            }
+        }
+    }
+
     fn refresh_some(&mut self) {
         let state = &mut self.state;
         if state.dirty_edges.is_empty() || !state.is_ready {
@@ -398,7 +427,7 @@ impl EdgeUpdater {
         state.latest_slot_processed = state.latest_slot_pending;
 
         if started_at.elapsed() > Duration::from_millis(100) {
-            info!(
+            debug!(
                 "{} - refresh {} - took - {:?}",
                 self.dex.name,
                 refreshed_edges.len(),

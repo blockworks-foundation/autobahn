@@ -35,6 +35,7 @@ use router_lib::model::quote_response::{RoutePlan, SwapInfo};
 // make sure the transaction can be executed
 const MAX_ACCOUNTS_PER_TX: usize = 64;
 const MAX_TX_SIZE: usize = 1232;
+const DEFAULT_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS: u64 = 10_000;
 
 pub struct HttpServer {
     pub join_handle: JoinHandle<()>,
@@ -179,6 +180,7 @@ impl HttpServer {
                 0,
                 "0".to_string(),
                 swap_mode,
+                DEFAULT_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
             )
             .await?;
 
@@ -282,6 +284,11 @@ impl HttpServer {
         let swap_mode: SwapMode = SwapMode::from_str(&input.quote_response.swap_mode)
             .map_err(|_| anyhow::Error::msg("Invalid SwapMode"))?;
 
+        let compute_unit_price_micro_lamports = match input.compute_unit_price_micro_lamports {
+            Some(price) => price,
+            None => DEFAULT_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
+        };
+
         let (bytes, _) = Self::build_swap_tx(
             address_lookup_table_addresses,
             hash_provider,
@@ -294,13 +301,14 @@ impl HttpServer {
             input.quote_response.slippage_bps,
             input.quote_response.other_amount_threshold,
             swap_mode,
+            compute_unit_price_micro_lamports,
         )
         .await?;
 
         let json_response = serde_json::json!(SwapResponse {
             swap_transaction: bytes,
             last_valid_block_height: input.quote_response.context_slot,
-            priorization_fee_lamports: 100_000,
+            priorization_fee_lamports: compute_unit_price_micro_lamports / 1_000_000, // convert microlamports to lamports
         });
 
         Ok(Json(json_response))
@@ -356,6 +364,7 @@ impl HttpServer {
         slippage_bps: i32,
         other_amount_threshold: String,
         swap_mode: SwapMode,
+        compute_unit_price_micro_lamports: u64,
     ) -> Result<(Vec<u8>, usize), AppError> {
         let wallet_pk = Pubkey::from_str(&wallet_pk)?;
 
@@ -370,15 +379,14 @@ impl HttpServer {
         )?;
 
         let compute_budget_ixs = vec![
-            ComputeBudgetInstruction::set_compute_unit_price(10_000), // ~0.01 lamport / CU
+            ComputeBudgetInstruction::set_compute_unit_price(compute_unit_price_micro_lamports),
             ComputeBudgetInstruction::set_compute_unit_limit(ixs.cu_estimate),
         ];
 
         let transaction_addresses = ixs.accounts().into_iter().collect();
-        let instructions = ixs
-            .setup_instructions
+        let instructions = compute_budget_ixs
             .into_iter()
-            .chain(compute_budget_ixs.into_iter())
+            .chain(ixs.setup_instructions.into_iter())
             .chain(vec![ixs.swap_instruction].into_iter())
             .chain(ixs.cleanup_instructions.into_iter())
             .collect_vec();
@@ -420,6 +428,11 @@ impl HttpServer {
         let swap_mode: SwapMode = SwapMode::from_str(&input.quote_response.swap_mode)
             .map_err(|_| anyhow::Error::msg("Invalid SwapMode"))?;
 
+        let compute_unit_price_micro_lamports = match input.compute_unit_price_micro_lamports {
+            Some(price) => price,
+            None => DEFAULT_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
+        };
+
         let ixs = ix_builder.build_ixs(
             &wallet_pk,
             &route_plan,
@@ -447,7 +460,9 @@ impl HttpServer {
             .collect();
 
         let compute_budget_ixs = vec![
-            InstructionResponse::from_ix(ComputeBudgetInstruction::set_compute_unit_price(10_000))?, // ~0.01 lamport / CU
+            InstructionResponse::from_ix(ComputeBudgetInstruction::set_compute_unit_price(
+                compute_unit_price_micro_lamports,
+            ))?,
             InstructionResponse::from_ix(ComputeBudgetInstruction::set_compute_unit_limit(
                 ixs.cu_estimate,
             ))?,

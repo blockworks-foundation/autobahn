@@ -8,13 +8,14 @@ use itertools::Itertools;
 use mango_feeds_connector::chain_data::AccountData;
 use router_feed_lib::router_rpc_client::{RouterRpcClient, RouterRpcClientTrait};
 use router_test_lib::{execution_dump, serialize};
+use sha2::{Digest, Sha256};
 use solana_sdk::account::ReadableAccount;
+use solana_sdk::bpf_loader_upgradeable::UpgradeableLoaderState;
 use solana_sdk::clock::Clock;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::sysvar::SysvarId;
-use std::collections::HashSet;
 use std::sync::Arc;
 use tracing::{debug, error};
 
@@ -67,7 +68,7 @@ pub async fn run_dump_mainnet_data_with_custom_amount(
     let mut skipped = 0;
     let mut success = 0;
 
-    let mut accounts_needed = HashSet::new();
+    let mut accounts_needed = dex.program_ids();
     for id in edges_identifiers {
         accounts_needed.insert(id.input_mint());
         accounts_needed.insert(id.output_mint());
@@ -123,7 +124,20 @@ pub async fn run_dump_mainnet_data_with_custom_amount(
     for x in accounts_needed.iter().take(10) {
         println!("- {} ", x);
     }
-    rpc_client.get_multiple_accounts(&accounts_needed).await?;
+    let accounts = rpc_client.get_multiple_accounts(&accounts_needed).await?;
+
+    for (_pk, account) in accounts {
+        // get buffer for upgradable programs
+        if account.owner == solana_sdk::bpf_loader_upgradeable::ID {
+            let state = bincode::deserialize::<UpgradeableLoaderState>(&account.data).unwrap();
+            if let UpgradeableLoaderState::Program {
+                programdata_address,
+            } = state
+            {
+                rpc_client.get_account(&programdata_address).await?;
+            }
+        }
+    }
 
     println!("Error count: {}", errors);
     println!("Skipped count: {}", skipped);
@@ -213,7 +227,7 @@ pub async fn run_dump_swap_ix_with_custom_amount(
             continue;
         };
 
-        debug!(
+        println!(
             "#{} || quote: {} => {} : {} => {}",
             success,
             id.input_mint(),
@@ -231,6 +245,25 @@ pub async fn run_dump_swap_ix_with_custom_amount(
             instruction: bincode::serialize(&swap_ix.instruction).unwrap(),
             is_exact_out: false,
         });
+
+        let chain_data_reader = chain_data.read().unwrap();
+        for account in swap_ix.instruction.accounts {
+            if let Ok(acc) = chain_data_reader.account(&account.pubkey) {
+                dump.accounts.insert(account.pubkey, acc.account.clone());
+            } else {
+                error!("Missing account (needed for swap) {}", account.pubkey);
+            }
+        }
+        let account = chain_data_reader
+            .account(&id.input_mint())
+            .expect("missing mint");
+        dump.accounts
+            .insert(id.input_mint(), account.account.clone());
+        let account = chain_data_reader
+            .account(&id.output_mint())
+            .expect("missing mint");
+        dump.accounts
+            .insert(id.output_mint(), account.account.clone());
 
         // build exact out tests
         if dex.supports_exact_out(&id) {
@@ -274,9 +307,6 @@ pub async fn run_dump_swap_ix_with_custom_amount(
                     instruction: bincode::serialize(&swap_exact_out_ix.instruction).unwrap(),
                     is_exact_out: true,
                 });
-
-                // add exact out accounts
-                let chain_data_reader = chain_data.read().unwrap();
                 for account in swap_exact_out_ix.instruction.accounts {
                     if let Ok(acc) = chain_data_reader.account(&account.pubkey) {
                         dump.accounts.insert(account.pubkey, acc.account.clone());
@@ -284,41 +314,8 @@ pub async fn run_dump_swap_ix_with_custom_amount(
                         error!("Missing account (needed for swap) {}", account.pubkey);
                     }
                 }
-
-                let account = chain_data_reader
-                    .account(&id.input_mint())
-                    .expect("missing mint");
-                dump.accounts
-                    .insert(id.input_mint(), account.account.clone());
-
-                let account = chain_data_reader
-                    .account(&id.input_mint())
-                    .expect("missing mint");
-                dump.accounts
-                    .insert(id.output_mint(), account.account.clone());
             }
         }
-
-        let chain_data_reader = chain_data.read().unwrap();
-        for account in swap_ix.instruction.accounts {
-            if let Ok(acc) = chain_data_reader.account(&account.pubkey) {
-                dump.accounts.insert(account.pubkey, acc.account.clone());
-            } else {
-                error!("Missing account (needed for swap) {}", account.pubkey);
-            }
-        }
-
-        let account = chain_data_reader
-            .account(&id.input_mint())
-            .expect("missing mint");
-        dump.accounts
-            .insert(id.input_mint(), account.account.clone());
-
-        let account = chain_data_reader
-            .account(&id.input_mint())
-            .expect("missing mint");
-        dump.accounts
-            .insert(id.output_mint(), account.account.clone());
     }
 
     println!("Error count: {}", errors);
@@ -326,6 +323,38 @@ pub async fn run_dump_swap_ix_with_custom_amount(
     println!("Success count: {}", success);
     println!("Exactout Success count: {}", exact_out_sucess);
 
+    for program in dump.programs.clone() {
+        let program_account = account_provider.account(&program)?;
+
+        dump.accounts
+            .insert(program, program_account.account.clone());
+        // use downloaded buffers for the upgradable programs
+        if *program_account.account.owner() == solana_sdk::bpf_loader_upgradeable::ID {
+            let state =
+                bincode::deserialize::<UpgradeableLoaderState>(program_account.account.data())
+                    .unwrap();
+            if let UpgradeableLoaderState::Program {
+                programdata_address,
+            } = state
+            {
+                let program_data_account = account_provider.account(&programdata_address)?;
+                dump.accounts
+                    .insert(programdata_address, program_data_account.account);
+            }
+        }
+    }
+
+    for program in &dump.programs {
+        debug!("program : {program:?}");
+    }
+
+    for (pk, account_data) in &dump.accounts {
+        let mut hasher = Sha256::new();
+        hasher.update(account_data.data());
+        let result = hasher.finalize();
+        let base64 = base64::encode(result);
+        debug!("account : {pk:?} dump : {base64:?}");
+    }
     serialize::serialize_to_file(
         &dump,
         &format!("../../programs/simulator/tests/fixtures/{}", dump_name).to_string(),

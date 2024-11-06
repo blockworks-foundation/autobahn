@@ -14,6 +14,7 @@ pub struct GrpcSourceConfig {
 #[derive(Clone, Debug, Default, serde_derive::Deserialize)]
 pub struct QuicSourceConfig {
     pub name: String,
+    #[serde(deserialize_with = "serde_string_or_env")]
     pub connection_string: String,
     pub retry_connection_sleep_secs: u64,
     pub enable_gso: Option<bool>,

@@ -1,12 +1,16 @@
 use solana_program::account_info::AccountInfo;
 use solana_program::entrypoint::ProgramResult;
-use solana_program::program::{invoke, invoke_signed};
+use solana_program::program::invoke;
 use solana_program::program_error::ProgramError;
 use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
 use solana_program::rent::Rent;
-use solana_program::system_instruction;
 use solana_program::system_program;
+use solana_program::sysvar::Sysvar;
+
+use crate::create_pda::create_pda_account;
+
+use crate::logs::{emit_stack, CreateReferralLog};
 
 pub fn execute_create_referral(accounts: &[AccountInfo], instruction_data: &[u8]) -> ProgramResult {
     if let [payer, referrer, vault, mint, system_program, token_program] = accounts {
@@ -34,33 +38,32 @@ pub fn execute_create_referral(accounts: &[AccountInfo], instruction_data: &[u8]
             return Err(ProgramError::InvalidSeeds);
         }
 
-        // fund account with rent
-        let space = spl_token::state::Account::LEN;
-        let lamports = Rent::default().minimum_balance(space);
+        create_pda_account(
+            payer,
+            &Rent::get()?,
+            spl_token::state::Account::LEN,
+            &spl_token::ID,
+            system_program,
+            vault,
+            &vault_seeds,
+        )?;
 
-        let create_account_ix = system_instruction::create_account(
-            payer.key,
-            vault.key,
-            lamports,
-            space as u64,
-            token_program.key,
-        );
-
-        let create_account_infos = [payer.clone(), vault.clone(), system_program.clone()];
-
-        invoke_signed(&create_account_ix, &create_account_infos, &[&vault_seeds])?;
-
-        // Initialize the token account for the vault
         let initialize_ix = spl_token::instruction::initialize_account3(
-            token_program.key,
+            &spl_token::ID,
             vault.key,
             mint.key,
             vault.key,
         )?;
 
         let initialize_account_infos = [vault.clone(), mint.clone(), token_program.clone()];
-
         invoke(&initialize_ix, &initialize_account_infos)?;
+
+        emit_stack(CreateReferralLog {
+            referee: *payer.key,
+            referer: *referrer.key,
+            vault: *vault.key,
+            mint: *mint.key,
+        })?;
 
         Ok(())
     } else {

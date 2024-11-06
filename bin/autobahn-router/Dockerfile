@@ -16,10 +16,11 @@ COPY . .
 RUN cargo build --release --bin autobahn-router
 
 FROM debian:bookworm-slim as run
+ARG CONFIG_PATH=/app/bin/autobahn-router/template-config.toml
 RUN apt-get update && apt-get -y install ca-certificates libc6 libssl3 libssl-dev openssl
 
 COPY --from=build /app/target/release/autobahn-router /usr/local/bin/
-COPY --from=build /app/bin/autobahn-router/template-config.toml /usr/local/bin/template-config.toml
+COPY --from=build $CONFIG_PATH /usr/local/bin/template-config.toml
 
 RUN adduser --system --group --no-create-home mangouser
 USER mangouser

@@ -23,6 +23,7 @@ test-case = "*"
 tokio = "1.37.0"
 solana-address-lookup-table-program = "1.17"
 solana-program-test = "1.17"
+solana-program-runtime = "1.17"
 solana-sdk = "1.17"
 spl-token = { version = "^3.0.0", features = ["no-entrypoint"] }
 spl-token-2022 = { version = "1.0.0", features = ["no-entrypoint"] }
@@ -31,3 +32,11 @@ bonfida-test-utils = "0.4.4"
 log = "0.4.14"
 env_logger = "0.9.0"
 bincode = "1.3.3"
+sha2 = "0.10.8"
+base64 = "0.12.3"
+litesvm = { git = "https://github.com/blockworks-foundation/litesvm.git", branch = "v0.1.0+solana_1.7" }
+tracing = "0.1.37"
+tracing-subscriber = "0.3.16"
+
+[profile.test]
+inherits = "release"

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use jupiter_amm_interface::{Amm, QuoteParams, SwapMode};
@@ -67,6 +68,14 @@ impl DexInterface for InfinityDex {
             let lst_mint = lst_data.sol_val_calc.lst_mint();
             let account_metas = lst_data.sol_val_calc.ix_accounts();
             let num_accounts_for_tx = account_metas.len();
+            let Ok((lst_state, lst_data)) = amm.find_ready_lst(lst_mint) else {
+                continue;
+            };
+
+            if lst_state.is_input_disabled != 0 {
+                continue;
+            }
+
             for pk in lst_data.sol_val_calc.get_accounts_to_update() {
                 let edges = vec![
                     Arc::new(InfinityEdgeIdentifier {
@@ -106,6 +115,7 @@ impl DexInterface for InfinityDex {
 
     fn program_ids(&self) -> HashSet<Pubkey> {
         [
+            Pubkey::from_str("5ocnV1qiCgaQR8Jb8xWnVbApfaygJ8tNoZfgPwsgx9kx").unwrap(),
             s_controller_lib::program::ID,
             sanctum_spl_multi_stake_pool_program::ID,
             sanctum_spl_stake_pool_program::ID,

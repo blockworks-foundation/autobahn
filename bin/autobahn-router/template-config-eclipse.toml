@@ -1,0 +1,99 @@
+snapshot_timeout_in_seconds = 900
+
+[infinity]
+enabled = false
+
+[orca]
+enabled = true
+mints = []
+take_all_mints = true
+add_mango_tokens = false
+
+[cropper]
+enabled = false
+mints = []
+take_all_mints = true
+add_mango_tokens = false
+
+[openbook_v2]
+enabled = false
+mints = []
+take_all_mints = true
+add_mango_tokens = false
+
+[raydium]
+enabled = false
+mints = []
+take_all_mints = true
+add_mango_tokens = false
+
+[raydium_cp]
+enabled = false
+mints = []
+take_all_mints = true
+add_mango_tokens = false
+
+[saber]
+enabled = false
+mints = []
+take_all_mints = true
+add_mango_tokens = false
+
+
+[routing]
+path_cache_validity_ms = 30000
+path_warming_mode = "ConfiguredMints"
+#path_warming_mode = "HotMints"
+path_warming_amounts = [100, 1000, 10_000]
+path_warming_for_mints = [
+    "So11111111111111111111111111111111111111112",  # SOL
+]
+path_warming_interval_secs = 5
+path_warming_max_accounts = [20, 30, 40, 64]
+lookup_tables = []
+cooldown_duration_multihop_secs = 30
+cooldown_duration_singlehop_secs = 60
+max_path_length = 3
+retain_path_count = 5
+max_edge_per_pair = 5
+max_edge_per_cold_pair = 2
+slot_excessive_lag_max_duration_secs = 1600
+
+[server]
+address = "[::]:8888"
+
+[metrics]
+output_http = true
+prometheus_address = "[::]:9091"
+output_stdout = false
+
+[[sources]]
+dedup_queue_size = 50000
+rpc_http_url = "$RPC_HTTP_URL"
+rpc_support_compression = false
+re_snapshot_interval_secs = 1200
+request_timeout_in_seconds = 300
+
+[[sources.grpc_sources]]
+name = "router-eclipse"
+connection_string = "$RPC_HTTP_URL_WITHOUT_TOKEN"
+token = "$RPC_TOKEN"
+retry_connection_sleep_secs = 30
+
+[price_feed]
+birdeye_token = "$BIRDEYE_TOKEN"
+refresh_interval_secs = 1200     # every 20 min
+
+[safety_checks]
+check_quote_out_amount_deviation = true
+min_quote_out_to_in_amount_ratio = 0.65
+
+[hot_mints]
+always_hot_mints = [
+    "So11111111111111111111111111111111111111112",  # SOL
+]
+keep_latest_count = 50
+
+[debug_config]
+reprice_using_live_rpc = true
+reprice_probability = 0.05
