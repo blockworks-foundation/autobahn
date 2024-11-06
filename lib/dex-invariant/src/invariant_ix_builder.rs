@@ -11,7 +11,7 @@ use solana_program::pubkey::Pubkey;
 pub fn build_swap_ix(
     id: &InvariantEdgeIdentifier,
     edge: &InvariantEdge,
-    _chain_data: &AccountProviderView,
+    chain_data: &AccountProviderView,
     wallet_pk: &Pubkey,
     in_amount: u64,
     _out_amount: u64,
@@ -53,7 +53,7 @@ pub fn build_swap_ix(
     };
 
     let (swap_accounts, _x_to_y) =
-        InvariantSwapAccounts::from_pubkeys(edge, id.pool, &swap_params)?;
+        InvariantSwapAccounts::from_pubkeys(chain_data, edge, id.pool, &swap_params)?;
     let metas = swap_accounts.to_account_metas();
 
     let discriminator = &Sha256::digest(b"global:swap")[0..8];

@@ -3,7 +3,11 @@ use std::{
     sync::Arc,
 };
 
-use anchor_lang::AnchorDeserialize;
+use anchor_lang::{AnchorDeserialize, Id};
+use anchor_spl::{
+    token::spl_token::{self, state::AccountState},
+    token_2022::Token2022,
+};
 use anyhow::{Context, Ok};
 use async_trait::async_trait;
 use invariant_types::{
@@ -21,7 +25,7 @@ use solana_client::{
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
     rpc_filter::RpcFilterType,
 };
-use solana_sdk::{account::ReadableAccount, pubkey::Pubkey};
+use solana_sdk::{account::ReadableAccount, program_pack::Pack, pubkey::Pubkey};
 use tracing::info;
 
 use crate::{
@@ -231,7 +235,30 @@ impl DexInterface for InvariantDex {
     where
         Self: Sized,
     {
-        let pools = fetch_invariant_accounts(rpc, crate::id()).await?;
+        let mut pools = fetch_invariant_accounts(rpc, crate::id()).await?;
+
+        let reserves = pools
+            .iter()
+            .flat_map(|x| [x.1.token_x_reserve, x.1.token_y_reserve])
+            .collect::<HashSet<_>>();
+
+        let vaults = rpc.get_multiple_accounts(&reserves).await?;
+        let banned_reserves = vaults
+            .iter()
+            .filter(|(_, reserve)| {
+                reserve.owner == Token2022::id()
+                    || spl_token::state::Account::unpack(reserve.data())
+                        .unwrap()
+                        .state
+                        == AccountState::Frozen
+            })
+            .map(|(pk, _)| pk)
+            .collect::<HashSet<_>>();
+
+        pools.retain(|p| {
+            !(banned_reserves.contains(&p.1.token_x_reserve)
+                || banned_reserves.contains(&p.1.token_y_reserve))
+        });
 
         info!("Number of Invariant Pools: {:?}", pools.len());
 

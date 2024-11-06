@@ -1,7 +1,8 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::spl_token;
 use anyhow::Error;
 use invariant_types::{SEED, STATE_SEED};
+use router_lib::dex::AccountProviderView;
+use solana_sdk::account::ReadableAccount;
 
 use super::swap::InvariantSwapResult;
 use crate::{invariant_edge::InvariantEdge, InvariantDex};
@@ -22,19 +23,23 @@ pub struct InvariantSwapAccounts {
     state: Pubkey,
     pool: Pubkey,
     tickmap: Pubkey,
+    token_x: Pubkey,
+    token_y: Pubkey,
     account_x: Pubkey,
     account_y: Pubkey,
     reserve_x: Pubkey,
     reserve_y: Pubkey,
     owner: Pubkey,
     program_authority: Pubkey,
-    token_program: Pubkey,
+    token_x_program: Pubkey,
+    token_y_program: Pubkey,
     ticks_accounts: Vec<Pubkey>,
     referral_fee: Option<Pubkey>,
 }
 
 impl InvariantSwapAccounts {
     pub fn from_pubkeys(
+        chain_data: &AccountProviderView,
         invariant_edge: &InvariantEdge,
         pool_pk: Pubkey,
         invariant_swap_params: &InvariantSwapParams,
@@ -63,17 +68,29 @@ impl InvariantSwapAccounts {
         let ticks_accounts =
             InvariantDex::tick_indexes_to_addresses(pool_pk, &invariant_swap_result.used_ticks);
 
+        let token_x_program = *chain_data
+            .account(&invariant_edge.pool.token_x)?
+            .account
+            .owner();
+        let token_y_program = *chain_data
+            .account(&invariant_edge.pool.token_y)?
+            .account
+            .owner();
+
         let invariant_swap_accounts = Self {
             state: Self::get_state_address(crate::ID),
             pool: pool_pk,
             tickmap: invariant_edge.pool.tickmap,
+            token_x: invariant_edge.pool.token_x,
+            token_y: invariant_edge.pool.token_y,
             account_x,
             account_y,
             reserve_x: invariant_edge.pool.token_x_reserve,
             reserve_y: invariant_edge.pool.token_y_reserve,
             owner: *owner,
             program_authority: Self::get_program_authority(crate::ID),
-            token_program: spl_token::id(),
+            token_x_program,
+            token_y_program,
             ticks_accounts,
             referral_fee: *referral_fee,
         };
@@ -86,13 +103,16 @@ impl InvariantSwapAccounts {
             AccountMeta::new_readonly(self.state, false),
             AccountMeta::new(self.pool, false),
             AccountMeta::new(self.tickmap, false),
+            AccountMeta::new(self.token_x, false),
+            AccountMeta::new(self.token_y, false),
             AccountMeta::new(self.account_x, false),
             AccountMeta::new(self.account_y, false),
             AccountMeta::new(self.reserve_x, false),
             AccountMeta::new(self.reserve_y, false),
             AccountMeta::new(self.owner, true),
             AccountMeta::new_readonly(self.program_authority, false),
-            AccountMeta::new_readonly(self.token_program, false),
+            AccountMeta::new_readonly(self.token_x_program, false),
+            AccountMeta::new_readonly(self.token_y_program, false),
         ];
 
         let ticks_metas: Vec<AccountMeta> = self

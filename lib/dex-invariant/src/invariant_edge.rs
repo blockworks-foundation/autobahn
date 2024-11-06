@@ -48,7 +48,7 @@ impl DexEdgeIdentifier for InvariantEdgeIdentifier {
     }
 
     fn accounts_needed(&self) -> usize {
-        10 // total accounts without ticks
+        13 // total accounts without ticks
          - 2 // user output ATA + user wallet address
           + TICK_CROSSES_PER_IX + TICKS_BACK_COUNT
     }

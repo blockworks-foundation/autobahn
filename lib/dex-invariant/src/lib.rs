@@ -7,4 +7,7 @@ pub use invariant_dex::InvariantDex;
 
 use solana_sdk::declare_id;
 
-declare_id!("HyaB3W9q6XdA5xwpU4XnSZV94htfmbmqJXZcEbRaJutt");
+// SOL
+// declare_id!("HyaB3W9q6XdA5xwpU4XnSZV94htfmbmqJXZcEbRaJutt");
+// eclipse
+declare_id!("iNvTyprs4TX8m6UeUEkeqDFjAL9zRCRWcexK9Sd4WEU");
