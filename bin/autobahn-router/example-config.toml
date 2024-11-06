@@ -57,6 +57,12 @@ mints = []
 take_all_mints = false
 add_mango_tokens = false
 
+[invariant]
+enabled = false
+mints = []
+take_all_mints = false
+add_mango_tokens = false
+
 [routing]
 path_cache_validity_ms = 30000
 path_warming_interval_secs = 15
