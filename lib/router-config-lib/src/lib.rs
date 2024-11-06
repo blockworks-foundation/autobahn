@@ -41,6 +41,7 @@ pub struct Config {
     pub raydium_cp: DexConfig,
     pub raydium: DexConfig,
     pub saber: DexConfig,
+    pub invariant: DexConfig,
     pub infinity: InfinityConfig,
     pub safety_checks: Option<SafetyCheckConfig>,
     pub hot_mints: Option<HotMintsConfig>,
