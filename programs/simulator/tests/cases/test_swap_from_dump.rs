@@ -516,7 +516,13 @@ async fn get_balance(
     mint: Pubkey,
     is_2022: bool,
 ) -> anyhow::Result<u64> {
-    let ata_address = get_associated_token_address(&owner, &mint);
+    let token_program_id = if is_2022 {
+        spl_token_2022::ID
+    } else {
+        spl_token::ID
+    };
+
+    let ata_address = get_associated_token_address_with_program_id(&owner, &mint, &token_program_id);
 
     let Some(ata) = ctx.get_account(&ata_address) else {
         return Ok(0);
