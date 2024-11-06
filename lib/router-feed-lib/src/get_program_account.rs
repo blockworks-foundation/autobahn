@@ -7,8 +7,7 @@ use base64::Engine;
 use jsonrpc_core_client::transports::http;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use solana_account_decoder::{UiAccount, UiAccountData, UiAccountEncoding};
-use solana_client::rpc_response::RpcKeyedAccount;
+use solana_account_decoder::{UiAccount, UiAccountEncoding};
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
@@ -124,9 +123,6 @@ pub async fn get_compressed_program_account(
     let config = RpcProgramAccountsConfig {
         filters: None,
         with_context: Some(true),
-        account_config: RpcAccountInfoConfig {
-            ..Default::default()
-        },
         ..Default::default()
     };
 
@@ -134,6 +130,7 @@ pub async fn get_compressed_program_account(
 }
 
 // called on startup to get the required accounts, few calls with some 100 thousand accounts
+#[tracing::instrument(skip_all, level = "trace")]
 pub async fn get_compressed_program_account_rpc(
     rpc_client: &RpcClient,
     filters: &HashSet<Pubkey>,
@@ -141,10 +138,6 @@ pub async fn get_compressed_program_account_rpc(
 ) -> anyhow::Result<(u64, Vec<AccountWrite>)> {
     let config = RpcProgramAccountsConfig {
         with_context: Some(true),
-        account_config: RpcAccountInfoConfig{
-            encoding: Some(UiAccountEncoding::Base64),
-            ..Default::default()
-        },
         ..config
     };
 
@@ -156,11 +149,14 @@ pub async fn get_compressed_program_account_rpc(
         info!("gPA for {}", program_id);
 
         let result = rpc_client
-        .send::<OptionalContext<Vec<RpcKeyedAccount>>>(
-            solana_client::rpc_request::RpcRequest::GetProgramAccounts ,
-            json!([program_id.to_string(), config]),
-        )
-        .await;
+            .send::<OptionalContext<Vec<RpcKeyedCompressedAccount>>>(
+                solana_client::rpc_request::RpcRequest::Custom {
+                    method: "getProgramAccountsCompressed",
+                },
+                json!([program_id.to_string(), config]),
+            )
+            .await;
+
         // failed to get over compressed program accounts
         match result {
             Ok(OptionalContext::Context(response)) => {
@@ -169,19 +165,13 @@ pub async fn get_compressed_program_account_rpc(
                 min_slot = updated_slot.min(min_slot);
 
                 for key_account in response.value {
-                    let account_data = if let UiAccountData::Binary(data, encoding) = &key_account.account.data {
-                        if let UiAccountEncoding::Base64 = encoding {
-                           data 
-                        } else {
-                            panic!("wrong encoding")
-                        }
-                    } else {
-                        panic!("wrong data type")
-                    };
-                    base64::engine::general_purpose::STANDARD.decode(&account_data)?;
+                    let base64_decoded =
+                        base64::engine::general_purpose::STANDARD.decode(&key_account.a)?;
                     // decompress all the account information
-                    let pubkey = Pubkey::from_str(&key_account.pubkey).unwrap();
-                    let account: Account = key_account.account.decode().unwrap();
+                    let uncompressed = lz4::block::decompress(&base64_decoded, None)?;
+                    let shared_data = bincode::deserialize::<AccountSharedData>(&uncompressed)?;
+                    let pubkey = Pubkey::from_str(&key_account.p).unwrap();
+                    let account: Account = shared_data.into();
                     snap_result.push(account_write_from(
                         pubkey,
                         updated_slot,
@@ -190,7 +180,7 @@ pub async fn get_compressed_program_account_rpc(
                     ));
                 }
 
-                println!(
+                info!(
                     "Decompressed snapshot for {} with {} accounts",
                     program_id,
                     snap_result.len()
