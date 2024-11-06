@@ -1981,6 +1981,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e962a19be5cfc3f3bf6dd8f61eb50107f356ad6270fbb3ed41476571db78be5"
 
 [[package]]
+name = "decimal"
+version = "0.1.0"
+source = "git+https://github.com/invariant-labs/protocol?rev=14da6bde97849ddbdc75a23005bcdeb8105c3385#14da6bde97849ddbdc75a23005bcdeb8105c3385"
+dependencies = [
+ "decimal_core",
+ "integer-sqrt",
+ "num-traits",
+ "uint",
+]
+
+[[package]]
+name = "decimal_core"
+version = "0.1.0"
+source = "git+https://github.com/invariant-labs/protocol?rev=14da6bde97849ddbdc75a23005bcdeb8105c3385#14da6bde97849ddbdc75a23005bcdeb8105c3385"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.35",
+ "regex",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "default-env"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2118,6 +2140,40 @@ dependencies = [
  "solana-sdk-macro",
  "spl-associated-token-account 1.1.3",
  "tracing",
+]
+
+[[package]]
+name = "dex-invariant"
+version = "0.0.1"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "anyhow",
+ "arrayref",
+ "async-trait",
+ "bytemuck",
+ "chrono",
+ "decimal",
+ "invariant-types",
+ "itertools 0.10.5",
+ "num-derive 0.3.3",
+ "num-traits",
+ "router-feed-lib",
+ "router-lib",
+ "router-test-lib",
+ "safe-transmute",
+ "serde",
+ "sha2 0.10.8",
+ "solana-account-decoder",
+ "solana-client",
+ "solana-logger",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-associated-token-account 1.1.3",
+ "thiserror",
+ "tracing",
+ "uint",
 ]
 
 [[package]]
@@ -3507,6 +3563,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a5bbe824c507c5da5956355e86a746d82e0e1464f65d862cc5e71da70e94b2c"
 dependencies = [
  "cfg-if 1.0.0",
+]
+
+[[package]]
+name = "integer-sqrt"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "276ec31bcb4a9ee45f58bec6f9ec700ae4cf4f4f8f2fa7e06cb406bd5ffdd770"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "invariant-types"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anyhow",
+ "arrayref",
+ "borsh 0.9.3",
+ "bytemuck",
+ "decimal",
+ "num-derive 0.3.3",
+ "num-traits",
+ "safe-transmute",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
