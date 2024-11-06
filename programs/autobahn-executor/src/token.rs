@@ -61,7 +61,7 @@ pub fn intialize<'a>(
     account: &AccountInfo<'a>,
     seeds: &[&[u8]],
 ) -> Result<(), ProgramError> {
-    let space = match *account.owner {
+    let space = match *token_program.key {
         spl_token::ID => Ok(spl_token::state::Account::LEN),
         spl_token_2022::ID => {
             let mint_data = mint.data.borrow();
@@ -82,7 +82,7 @@ pub fn intialize<'a>(
         payer,
         &Rent::get()?,
         space,
-        account.owner,
+        token_program.key,
         system_program,
         account,
         seeds,
