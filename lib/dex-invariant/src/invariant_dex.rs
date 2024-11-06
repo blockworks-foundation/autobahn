@@ -4,7 +4,13 @@ use std::{
 };
 
 use anchor_lang::{AnchorDeserialize, Id};
-use anchor_spl::{token::spl_token::{self, state::AccountState}, token_2022::Token2022};
+use anchor_spl::{
+    token::{
+        self,
+        spl_token::{self, state::AccountState},
+    },
+    token_2022::{self, spl_token_2022, Token2022},
+};
 use anyhow::{Context, Ok};
 use async_trait::async_trait;
 use invariant_types::{
@@ -242,11 +248,20 @@ impl DexInterface for InvariantDex {
         let vaults = rpc.get_multiple_accounts(&reserves).await?;
         let banned_reserves = vaults
             .iter()
-            .filter(|(_, reserve)| {
-                        spl_token::state::Account::unpack(reserve.data())
+            .filter(|(_, reserve)| match reserve.owner {
+                token_2022::ID => {
+                    spl_token_2022::state::Account::unpack(reserve.data())
+                        .unwrap()
+                        .state
+                        == spl_token_2022::state::AccountState::Frozen
+                }
+                token::ID => {
+                    spl_token::state::Account::unpack(reserve.data())
                         .unwrap()
                         .state
                         == AccountState::Frozen
+                }
+                _ => true,
             })
             .map(|(pk, _)| pk)
             .collect::<HashSet<_>>();
