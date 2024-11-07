@@ -241,7 +241,6 @@ async fn main() -> anyhow::Result<()> {
         }),
     };
 
-
     info!("config = {config:?}");
     let dexs: Vec<Dex> = [
         dex::generic::build_dex!(
@@ -442,6 +441,17 @@ async fn main() -> anyhow::Result<()> {
         )
         .collect::<HashSet<_>>();
 
+    // collect all mints traded so their token program owner can be checked
+    let mut mints = HashSet::new();
+    for d in dexs.iter() {
+        for es in d.edges_per_pk.values() {
+            for e in es {
+                mints.insert(e.input_mint);
+                mints.insert(e.output_mint);
+            }
+        }
+    }
+
     debug_tools::set_global_filters(&filters);
 
     info!(
@@ -457,6 +467,7 @@ async fn main() -> anyhow::Result<()> {
             DexSubscriptionMode::Mixed(m) => m.accounts.clone().into_iter(),
             DexSubscriptionMode::Disabled => HashSet::new().into_iter(),
         })
+        .chain(mints.into_iter())
         .collect();
 
     let subscribed_programs = dexs
