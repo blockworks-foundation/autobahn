@@ -223,13 +223,14 @@ impl InvariantEdge {
                 } else {
                     virtual_cross_counter =
                         virtual_cross_counter.checked_add(1).ok_or("add overflow")?;
-                    if InvariantSwapResult::break_swap_loop_early(
-                        used_ticks.len() as u16,
-                        virtual_cross_counter,
-                    )? {
-                        global_insufficient_liquidity = true;
-                        break;
-                    }
+                }
+
+                if InvariantSwapResult::break_swap_loop_early(
+                    used_ticks.len() as u16,
+                    virtual_cross_counter,
+                )? {
+                    global_insufficient_liquidity = true;
+                    break;
                 }
 
                 pool.current_tick_index = if x_to_y && is_enough_amount_to_cross {

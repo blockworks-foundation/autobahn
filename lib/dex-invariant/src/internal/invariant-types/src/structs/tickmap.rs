@@ -9,7 +9,7 @@ use crate::{err, function, location, trace};
 pub const TICK_LIMIT: i32 = 44_364; // If you change it update length of array as well!
 pub const TICK_SEARCH_RANGE: i32 = 256;
 pub const MAX_TICK: i32 = 221_818; // log(1.0001, sqrt(2^64-1))
-pub const TICK_CROSSES_PER_IX: usize = 4;
+pub const TICK_CROSSES_PER_IX: usize = 10;
 pub const TICKS_BACK_COUNT: usize = 1;
 pub const TICKMAP_SIZE: i32 = 2 * TICK_LIMIT - 1;
 
