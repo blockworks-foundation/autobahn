@@ -86,6 +86,7 @@ pub fn execute_swap_v3(
         let out_amount = balance_after - balance_before;
         let out_mint = token::get_mint(ix_token_account)?;
 
+        
         if ix_index == 0 {
             input_amount = input_token_account_balance - token::get_balance(&accounts[0])?;
             input_mint = in_mint;

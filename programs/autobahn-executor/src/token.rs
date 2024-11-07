@@ -16,8 +16,9 @@ pub fn get_balance(account: &AccountInfo) -> Result<u64, ProgramError> {
             Ok(token.amount)
         }
         spl_token_2022::ID => {
-            let token = spl_token_2022::state::Account::unpack(&account.try_borrow_data()?)?;
-            Ok(token.amount)
+            let data = account.data.borrow();
+            let token = StateWithExtensions::<spl_token_2022::state::Account>::unpack(&data)?;
+            Ok(token.base.amount)
         }
         _ => Err(ProgramError::IllegalOwner),
     }
@@ -30,9 +31,9 @@ pub fn get_mint(account: &AccountInfo) -> Result<Pubkey, ProgramError> {
             Ok(token.mint)
         }
         spl_token_2022::ID => {
-            let token: spl_token_2022::state::Account =
-                spl_token_2022::state::Account::unpack(&account.try_borrow_data()?)?;
-            Ok(token.mint)
+            let data = account.data.borrow();
+            let token = StateWithExtensions::<spl_token_2022::state::Account>::unpack(&data)?;
+            Ok(token.base.mint)
         }
         _ => Err(ProgramError::IllegalOwner),
     }
@@ -45,9 +46,9 @@ pub fn get_owner(account: &AccountInfo) -> Result<Pubkey, ProgramError> {
             Ok(token.owner)
         }
         spl_token_2022::ID => {
-            let token: spl_token_2022::state::Account =
-                spl_token_2022::state::Account::unpack(&account.try_borrow_data()?)?;
-            Ok(token.owner)
+            let data = account.data.borrow();
+            let token = StateWithExtensions::<spl_token_2022::state::Account>::unpack(&data)?;
+            Ok(token.base.owner)
         }
         _ => Err(ProgramError::IllegalOwner),
     }
