@@ -1,5 +1,7 @@
 use anchor_lang::AccountDeserialize;
-use anchor_spl::token::Mint;
+use anchor_spl::token::{spl_token, Mint};
+use anchor_spl::token_2022::spl_token_2022;
+use anchor_spl::token_2022::spl_token_2022::extension::StateWithExtensions;
 use futures_util::future::join_all;
 use itertools::Itertools;
 use jsonrpc_core_client::transports::http;
@@ -7,8 +9,9 @@ use router_feed_lib::solana_rpc_minimal::rpc_accounts_scan::RpcAccountsScanClien
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::rpc_config::RpcAccountInfoConfig;
 use solana_program::pubkey::Pubkey;
-use solana_sdk::account::Account;
+use solana_sdk::account::{Account, ReadableAccount};
 use solana_sdk::commitment_config::CommitmentConfig;
+use solana_sdk::program_pack::Pack;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -43,7 +46,7 @@ pub async fn request_mint_metadata(
         .unwrap();
     let rpc_client = Arc::new(rpc_client);
     let account_info_config = RpcAccountInfoConfig {
-        encoding: Some(UiAccountEncoding::Binary),
+        encoding: Some(UiAccountEncoding::Base64),
         commitment: Some(CommitmentConfig::finalized()),
         data_slice: None,
         min_context_slot: None,
@@ -71,18 +74,23 @@ pub async fn request_mint_metadata(
             for (account_pk, ui_account) in accounts {
                 if let Some(ui_account) = ui_account {
                     let mut account: Account = ui_account.decode().unwrap();
-                    let data = account.data.as_mut_slice();
-                    let mint_account = Mint::try_deserialize(&mut &*data).unwrap();
-                    trace!(
-                        "Mint Account {}: decimals={}",
-                        account_pk.to_string(),
-                        mint_account.decimals
-                    );
+                    
+                    let decimals = match account.owner {
+                        spl_token::ID => {
+                            let mint = spl_token::state::Mint::unpack(account.data()).unwrap();
+                            mint.decimals
+                        },
+                        spl_token_2022::ID => {
+                            let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&account.data()).unwrap();
+                            mint.base.decimals
+                        }
+                        _ => panic!("could not parse mint {:?}", account_pk)
+                    };
                     mint_accounts.insert(
                         account_pk,
                         Token {
                             mint: account_pk,
-                            decimals: mint_account.decimals,
+                            decimals,
                         },
                     );
                     count.fetch_add(1, Ordering::Relaxed);

@@ -192,9 +192,11 @@ where {
         chain_data: &AccountProviderView,
     ) -> anyhow::Result<InvariantEdge> {
         let pool_account_data = chain_data.account(&id.pool)?;
+
         let pool = Self::deserialize::<Pool>(pool_account_data.account.data())?;
 
         let tickmap_account_data = chain_data.account(&pool.tickmap)?;
+
         let tickmap = Self::deserialize_tickmap_view(
             &tickmap_account_data.account.data(),
             pool.current_tick_index,
@@ -254,6 +256,8 @@ impl DexInterface for InvariantDex {
             .map(|(pk, _)| pk)
             .collect::<HashSet<_>>();
 
+        info!("Number of banned Invariant reserves {}", banned_reserves.len());
+
         pools.retain(|p| {
             !(banned_reserves.contains(&p.1.token_x_reserve)
                 || banned_reserves.contains(&p.1.token_y_reserve))
@@ -281,7 +285,9 @@ impl DexInterface for InvariantDex {
             })
             .into_iter()
             .collect();
+
         let tickmaps = pools.iter().map(|p| p.1.tickmap).collect();
+        info!("gMA tickmaps {tickmaps:?}");
         let tickmaps = rpc.get_multiple_accounts(&tickmaps).await?;
 
         let edges_per_pk = {
@@ -304,6 +310,9 @@ impl DexInterface for InvariantDex {
             }
             map
         };
+
+        info!("inv init done");
+
 
         Ok(Arc::new(InvariantDex {
             edges: edges_per_pk,

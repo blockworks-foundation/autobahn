@@ -86,6 +86,7 @@ impl BirdeyePriceFeed {
         mints: &HashSet<Pubkey>,
         sender: broadcast::Sender<PriceUpdate>,
     ) -> anyhow::Result<()> {
+        return Ok(());
         let http_client = reqwest::Client::new();
 
         let mut chunks: Vec<Vec<Pubkey>> = vec![];

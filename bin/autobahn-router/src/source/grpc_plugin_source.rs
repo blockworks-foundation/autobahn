@@ -70,6 +70,8 @@ pub async fn feed_data_geyser(
     subscribed_token_accounts: &HashSet<Pubkey>,
     sender: async_channel::Sender<SourceMessage>,
 ) -> anyhow::Result<()> {
+
+    println!("feed_data_geyser a:{subscribed_accounts:?} p:{subscribed_programs:?} t:{subscribed_token_accounts:?}");
     let use_compression = snapshot_config.rpc_support_compression.unwrap_or(false);
     let number_of_accounts_per_gma = snapshot_config.number_of_accounts_per_gma.unwrap_or(100);
     let grpc_connection_string = match &grpc_config.connection_string.chars().next().unwrap() {

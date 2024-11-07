@@ -241,6 +241,8 @@ async fn main() -> anyhow::Result<()> {
         }),
     };
 
+
+    info!("config = {config:?}");
     let dexs: Vec<Dex> = [
         dex::generic::build_dex!(
             OrcaDex::initialize(&mut router_rpc, orca_config).await?,
@@ -302,8 +304,8 @@ async fn main() -> anyhow::Result<()> {
             dex_invariant::InvariantDex::initialize(&mut router_rpc, HashMap::new()).await?,
             &mango_data,
             config.invariant.enabled,
-            config.invariant.take_all_mints,
             config.invariant.add_mango_tokens,
+            config.invariant.take_all_mints,
             &config.invariant.mints
         ),
     ]

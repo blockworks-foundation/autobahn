@@ -693,12 +693,15 @@ impl Routing {
             let mut best = HashMap::<(Pubkey, Pubkey), Vec<(EdgeIndex, f64)>>::new();
 
             for (edge_index, edge) in all_edges.iter().enumerate() {
+                trace!("ix:{edge_index} edge:{edge:?}");
                 if swap_mode == SwapMode::ExactOut && !edge.supports_exact_out() {
                     continue;
                 }
 
                 let edge_index: EdgeIndex = edge_index.into();
                 let state = edge.state.read().unwrap();
+                trace!("ix:{edge_index} edge:{edge:?} {:?}", state.cached_prices);
+
                 if !state.is_valid() || state.cached_prices.len() < i {
                     continue;
                 }
@@ -778,10 +781,10 @@ impl Routing {
                 price_impact,
             );
 
-            if price_impact > 0.25 {
-                skipped_bad_price_impact += 1;
-                continue;
-            }
+            // if price_impact > 0.25 {
+            //     skipped_bad_price_impact += 1;
+            //     continue;
+            // }
 
             match swap_mode {
                 SwapMode::ExactIn => {
