@@ -11,11 +11,9 @@ use anchor_spl::{
 use anyhow::{Context, Ok};
 use async_trait::async_trait;
 use invariant_types::{
-    math::{calculate_price_sqrt, get_max_tick, get_min_tick},
-    structs::{
+    math::{calculate_price_sqrt, get_max_tick, get_min_tick}, structs::{
         Pool, Tick, Tickmap, TickmapView, TICK_CROSSES_PER_IX, TICK_LIMIT, TICK_SEARCH_RANGE,
-    },
-    ANCHOR_DISCRIMINATOR_SIZE, TICK_SEED,
+    }, ANCHOR_DISCRIMINATOR_SIZE, MAX_VIRTUAL_CROSS, TICK_SEED
 };
 use router_feed_lib::router_rpc_client::{RouterRpcClient, RouterRpcClientTrait};
 use router_lib::dex::{
@@ -38,7 +36,7 @@ use crate::{
 pub struct InvariantDex {
     pub edges: HashMap<Pubkey, Vec<Arc<dyn DexEdgeIdentifier>>>,
 }
-pub const TICK_SUBSCRIPTION_RANGE: i32 = TICK_CROSSES_PER_IX as i32 * TICK_SEARCH_RANGE * 2;
+pub const TICK_SUBSCRIPTION_RANGE: i32 = (TICK_CROSSES_PER_IX as i32 + MAX_VIRTUAL_CROSS as i32 + 2) * TICK_SEARCH_RANGE;
 
 #[derive(Debug)]
 pub enum PriceDirection {
