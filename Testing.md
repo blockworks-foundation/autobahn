@@ -53,6 +53,7 @@ cargo test-sbf --package simulator -- --nocapture cases::test_swap_from_dump::te
 cargo test-sbf --package simulator -- --nocapture cases::test_swap_from_dump::test_quote_match_swap_for_orca 
 cargo test-sbf --package simulator -- --nocapture cases::test_swap_from_dump::test_quote_match_swap_for_cropper 
 cargo test-sbf --package simulator -- --nocapture cases::test_swap_from_dump::test_quote_match_swap_for_raydium_cp 
+cargo test-sbf --package simulator -- --nocapture cases::test_swap_from_dump::test_quote_match_swap_for_gamma 
 cargo test-sbf --package simulator -- --nocapture cases::test_swap_from_dump::test_quote_match_swap_for_raydium 
 cargo test-sbf --package simulator -- --nocapture cases::test_swap_from_dump::test_quote_match_swap_for_openbook_v2 
 cargo test-sbf --package simulator -- --nocapture cases::test_swap_from_dump::test_quote_match_swap_for_infinity 

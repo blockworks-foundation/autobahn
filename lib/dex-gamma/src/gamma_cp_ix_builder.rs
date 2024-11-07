@@ -2,7 +2,7 @@ use crate::edge::GammaEdgeIdentifier;
 use anchor_lang::{AccountDeserialize, Id, InstructionData, ToAccountMetas};
 use anchor_spl::associated_token::get_associated_token_address;
 use gamma::program::Gamma;
-use gamma::states::PoolState;
+use gamma::PoolState;
 use gamma::AUTH_SEED;
 use router_lib::dex::{AccountProviderView, SwapInstruction};
 use solana_program::instruction::Instruction;
@@ -25,19 +25,19 @@ pub fn build_swap_ix(
         ((out_amount as f64 * (10_000f64 - max_slippage_bps as f64)) / 10_000f64).floor() as u64;
 
     let (input_token_mint, output_token_mint) = if id.is_a_to_b {
-        (pool.token_0_mint, pool.token_1_mint)
+        (pool.token0_mint, pool.token1_mint)
     } else {
-        (pool.token_1_mint, pool.token_0_mint)
+        (pool.token1_mint, pool.token0_mint)
     };
     let (input_token_program, output_token_program) = if id.is_a_to_b {
-        (pool.token_0_program, pool.token_1_program)
+        (pool.token0_program, pool.token1_program)
     } else {
-        (pool.token_1_program, pool.token_0_program)
+        (pool.token1_program, pool.token0_program)
     };
     let (input_vault, output_vault) = if id.is_a_to_b {
-        (pool.token_0_vault, pool.token_1_vault)
+        (pool.token0_vault, pool.token1_vault)
     } else {
-        (pool.token_1_vault, pool.token_0_vault)
+        (pool.token1_vault, pool.token0_vault)
     };
 
     let (input_token_account, output_token_account) = (
@@ -46,12 +46,12 @@ pub fn build_swap_ix(
     );
 
     let instruction = gamma::instruction::SwapBaseInput {
-        amount_in: amount,
-        minimum_amount_out: other_amount_threshold,
+        _amount_in: amount,
+        _minimum_amount_out: other_amount_threshold,
     };
     let (authority, __bump) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &Gamma::id());
 
-    let accounts = gamma::accounts::Swap {
+    let accounts = gamma::accounts::SwapBaseInput {
         payer: *wallet_pk,
         authority,
         amm_config: pool.amm_config,

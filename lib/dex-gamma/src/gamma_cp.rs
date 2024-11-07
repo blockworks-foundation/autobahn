@@ -7,7 +7,7 @@ use anchor_spl::token_2022::spl_token_2022;
 use anyhow::Context;
 use async_trait::async_trait;
 use gamma::program::Gamma;
-use gamma::states::{AmmConfig, ObservationState, PoolState, PoolStatusBitIndex};
+use gamma::{AmmConfig, ObservationState, PoolState, PoolStatusBitIndex};
 use itertools::Itertools;
 use router_feed_lib::router_rpc_client::{RouterRpcClient, RouterRpcClientTrait};
 use router_lib::dex::{
@@ -50,7 +50,7 @@ impl DexInterface for GammaCpDex {
 
         let vaults = pools
             .iter()
-            .flat_map(|x| [x.1.token_0_vault, x.1.token_1_vault])
+            .flat_map(|x| [x.1.token0_vault, x.1.token1_vault])
             .collect::<HashSet<_>>();
         let vaults = rpc.get_multiple_accounts(&vaults).await?;
         let banned_vaults = vaults
@@ -66,12 +66,12 @@ impl DexInterface for GammaCpDex {
         let pools = pools
             .iter()
             .filter(|(_pool_pk, pool)| {
-                pool.token_0_program == Token::id() && pool.token_1_program == Token::id()
+                pool.token0_program == Token::id() && pool.token1_program == Token::id()
                 // TODO Remove filter when 2022 are working
             })
             .filter(|(_pool_pk, pool)| {
-                !banned_vaults.contains(&pool.token_0_vault)
-                    && !banned_vaults.contains(&pool.token_1_vault)
+                !banned_vaults.contains(&pool.token0_vault)
+                    && !banned_vaults.contains(&pool.token1_vault)
             })
             .collect_vec();
 
@@ -81,14 +81,14 @@ impl DexInterface for GammaCpDex {
                 (
                     Arc::new(GammaEdgeIdentifier {
                         pool: *pool_pk,
-                        mint_a: pool.token_0_mint,
-                        mint_b: pool.token_1_mint,
+                        mint_a: pool.token0_mint,
+                        mint_b: pool.token1_mint,
                         is_a_to_b: true,
                     }),
                     Arc::new(GammaEdgeIdentifier {
                         pool: *pool_pk,
-                        mint_a: pool.token_1_mint,
-                        mint_b: pool.token_0_mint,
+                        mint_a: pool.token1_mint,
+                        mint_b: pool.token0_mint,
                         is_a_to_b: false,
                     }),
                 )
@@ -108,15 +108,15 @@ impl DexInterface for GammaCpDex {
 
                 utils::insert_or_extend(&mut map, pool_pk, &entry);
                 utils::insert_or_extend(&mut map, &pool.amm_config, &entry);
-                utils::insert_or_extend(&mut map, &pool.token_0_vault, &entry);
-                utils::insert_or_extend(&mut map, &pool.token_1_vault, &entry);
+                utils::insert_or_extend(&mut map, &pool.token0_vault, &entry);
+                utils::insert_or_extend(&mut map, &pool.token1_vault, &entry);
 
                 needed_accounts.insert(*pool_pk);
                 needed_accounts.insert(pool.amm_config);
-                needed_accounts.insert(pool.token_0_vault);
-                needed_accounts.insert(pool.token_1_vault);
-                needed_accounts.insert(pool.token_0_mint);
-                needed_accounts.insert(pool.token_1_mint);
+                needed_accounts.insert(pool.token0_vault);
+                needed_accounts.insert(pool.token1_vault);
+                needed_accounts.insert(pool.token0_mint);
+                needed_accounts.insert(pool.token1_mint);
             }
             map
         };
@@ -162,14 +162,14 @@ impl DexInterface for GammaCpDex {
         let config_account = chain_data.account(&pool.amm_config)?;
         let config = AmmConfig::try_deserialize(&mut config_account.account.data())?;
 
-        let vault_0_account = chain_data.account(&pool.token_0_vault)?;
+        let vault_0_account = chain_data.account(&pool.token0_vault)?;
         let vault_0 = spl_token_2022::state::Account::unpack(vault_0_account.account.data())?;
 
-        let vault_1_account = chain_data.account(&pool.token_1_vault)?;
+        let vault_1_account = chain_data.account(&pool.token1_vault)?;
         let vault_1 = spl_token_2022::state::Account::unpack(vault_1_account.account.data())?;
 
-        let mint_0_account = chain_data.account(&pool.token_0_mint)?;
-        let mint_1_account = chain_data.account(&pool.token_1_mint)?;
+        let mint_0_account = chain_data.account(&pool.token0_mint)?;
+        let mint_1_account = chain_data.account(&pool.token1_mint)?;
         let transfer_0_fee = crate::edge::get_transfer_config(&mint_0_account)?;
         let transfer_1_fee = crate::edge::get_transfer_config(&mint_1_account)?;
 
@@ -203,7 +203,7 @@ impl DexInterface for GammaCpDex {
                 in_amount: 0,
                 out_amount: 0,
                 fee_amount: 0,
-                fee_mint: edge.pool.token_0_mint,
+                fee_mint: edge.pool.token0_mint,
             });
         }
 
@@ -214,7 +214,7 @@ impl DexInterface for GammaCpDex {
                 in_amount: 0,
                 out_amount: 0,
                 fee_amount: 0,
-                fee_mint: edge.pool.token_0_mint,
+                fee_mint: edge.pool.token0_mint,
             });
         }
 
@@ -223,10 +223,10 @@ impl DexInterface for GammaCpDex {
                 &edge.pool,
                 &edge.config,
                 &edge.observation_state,
-                edge.pool.token_0_vault,
+                edge.pool.token0_vault,
                 edge.vault_0_amount,
                 &edge.mint_0,
-                edge.pool.token_1_vault,
+                edge.pool.token1_vault,
                 edge.vault_1_amount,
                 &edge.mint_1,
                 in_amount,
@@ -237,17 +237,17 @@ impl DexInterface for GammaCpDex {
                 in_amount: result.0,
                 out_amount: result.1,
                 fee_amount: result.2,
-                fee_mint: edge.pool.token_0_mint,
+                fee_mint: edge.pool.token0_mint,
             }
         } else {
             let result = swap_base_input(
                 &edge.pool,
                 &edge.config,
                 &edge.observation_state,
-                edge.pool.token_1_vault,
+                edge.pool.token1_vault,
                 edge.vault_1_amount,
                 &edge.mint_1,
-                edge.pool.token_0_vault,
+                edge.pool.token0_vault,
                 edge.vault_0_amount,
                 &edge.mint_0,
                 in_amount,
@@ -258,7 +258,7 @@ impl DexInterface for GammaCpDex {
                 in_amount: result.0,
                 out_amount: result.1,
                 fee_amount: result.2,
-                fee_mint: edge.pool.token_1_mint,
+                fee_mint: edge.pool.token1_mint,
             }
         };
         Ok(quote)
@@ -303,7 +303,7 @@ impl DexInterface for GammaCpDex {
                 in_amount: u64::MAX,
                 out_amount: 0,
                 fee_amount: 0,
-                fee_mint: edge.pool.token_0_mint,
+                fee_mint: edge.pool.token0_mint,
             });
         }
 
@@ -314,7 +314,7 @@ impl DexInterface for GammaCpDex {
                 in_amount: u64::MAX,
                 out_amount: 0,
                 fee_amount: 0,
-                fee_mint: edge.pool.token_0_mint,
+                fee_mint: edge.pool.token0_mint,
             });
         }
 
@@ -323,10 +323,10 @@ impl DexInterface for GammaCpDex {
                 &edge.pool,
                 &edge.config,
                 &edge.observation_state,
-                edge.pool.token_0_vault,
+                edge.pool.token0_vault,
                 edge.vault_0_amount,
                 &edge.mint_0,
-                edge.pool.token_1_vault,
+                edge.pool.token1_vault,
                 edge.vault_1_amount,
                 &edge.mint_1,
                 out_amount,
@@ -337,17 +337,17 @@ impl DexInterface for GammaCpDex {
                 in_amount: result.0,
                 out_amount: result.1,
                 fee_amount: result.2,
-                fee_mint: edge.pool.token_0_mint,
+                fee_mint: edge.pool.token0_mint,
             }
         } else {
             let result = swap_base_output(
                 &edge.pool,
                 &edge.config,
                 &edge.observation_state,
-                edge.pool.token_1_vault,
+                edge.pool.token1_vault,
                 edge.vault_1_amount,
                 &edge.mint_1,
-                edge.pool.token_0_vault,
+                edge.pool.token0_vault,
                 edge.vault_0_amount,
                 &edge.mint_0,
                 out_amount,
@@ -358,7 +358,7 @@ impl DexInterface for GammaCpDex {
                 in_amount: result.0,
                 out_amount: result.1,
                 fee_amount: result.2,
-                fee_mint: edge.pool.token_1_mint,
+                fee_mint: edge.pool.token1_mint,
             }
         };
         Ok(quote)

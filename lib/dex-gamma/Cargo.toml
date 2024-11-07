@@ -15,6 +15,7 @@ solana-logger = "1.17"
 solana-program = "1.17"
 solana-program-test = "1.17"
 anchor-lang = "0.29.0"
+anchor-gen = "0.3.1"
 anchor-client = "0.29.0"
 anchor-spl = "0.29.0"
 anyhow = "1.0.86"
@@ -29,7 +30,7 @@ serde_derive = "1.0"
 mango-feeds-connector = { workspace = true }
 
 # gamma
-gamma = { workspace = true }
+gamma = { path="../gamma" }
 
 [dev-dependencies]
 router-test-lib = { path = "../router-test-lib", version = "0.1" }

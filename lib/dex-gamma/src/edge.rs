@@ -5,8 +5,8 @@ use anchor_spl::token_2022::spl_token_2022::extension::{
     BaseStateWithExtensions, StateWithExtensions,
 };
 use anchor_spl::token_2022::spl_token_2022::state::Mint;
-use gamma::curve::{CurveCalculator, TradeDirection};
-use gamma::states::{AmmConfig, ObservationState, PoolState, PoolStatusBitIndex};
+use gamma::curve::CurveCalculator;
+use gamma::{AmmConfig, ObservationState, PoolState, PoolStatusBitIndex};
 use mango_feeds_connector::chain_data::AccountData;
 use solana_program::clock::Clock;
 use solana_program::pubkey::Pubkey;
@@ -114,32 +114,24 @@ pub fn swap_base_input(
 
         // Calculate the trade amounts
 
-        let (trade_direction, total_input_token_amount, total_output_token_amount) =
-            if input_vault_key == pool_state.token_0_vault
-                && output_vault_key == pool_state.token_1_vault
-            {
-                let (total_input_token_amount, total_output_token_amount) =
-                    vault_amount_without_fee(pool_state, input_vault_amount, output_vault_amount)?;
+        let (total_input_token_amount, total_output_token_amount) = if input_vault_key
+            == pool_state.token0_vault
+            && output_vault_key == pool_state.token1_vault
+        {
+            let (total_input_token_amount, total_output_token_amount) =
+                vault_amount_without_fee(pool_state, input_vault_amount, output_vault_amount)?;
 
-                (
-                    TradeDirection::ZeroForOne,
-                    total_input_token_amount,
-                    total_output_token_amount,
-                )
-            } else if input_vault_key == pool_state.token_1_vault
-                && output_vault_key == pool_state.token_0_vault
-            {
-                let (total_output_token_amount, total_input_token_amount) =
-                    vault_amount_without_fee(pool_state, output_vault_amount, input_vault_amount)?;
+            (total_input_token_amount, total_output_token_amount)
+        } else if input_vault_key == pool_state.token1_vault
+            && output_vault_key == pool_state.token0_vault
+        {
+            let (total_output_token_amount, total_input_token_amount) =
+                vault_amount_without_fee(pool_state, output_vault_amount, input_vault_amount)?;
 
-                (
-                    TradeDirection::OneForZero,
-                    total_input_token_amount,
-                    total_output_token_amount,
-                )
-            } else {
-                anyhow::bail!("Invalid vault");
-            };
+            (total_input_token_amount, total_output_token_amount)
+        } else {
+            anyhow::bail!("Invalid vault");
+        };
 
         let Ok(result) = CurveCalculator::swap_base_input(
             u128::from(actual_amount_in),
@@ -150,7 +142,6 @@ pub fn swap_base_input(
             amm_config.fund_fee_rate,
             block_timestamp,
             &observation_state,
-            trade_direction,
         ) else {
             anyhow::bail!("Can't swap");
         };
@@ -210,32 +201,24 @@ pub fn swap_base_output(
         };
 
         // Calculate the trade amounts
-        let (trade_direction, total_input_token_amount, total_output_token_amount) =
-            if input_vault_key == pool_state.token_0_vault
-                && output_vault_key == pool_state.token_1_vault
-            {
-                let (total_input_token_amount, total_output_token_amount) =
-                    vault_amount_without_fee(pool_state, input_vault_amount, output_vault_amount)?;
+        let (total_input_token_amount, total_output_token_amount) = if input_vault_key
+            == pool_state.token0_vault
+            && output_vault_key == pool_state.token1_vault
+        {
+            let (total_input_token_amount, total_output_token_amount) =
+                vault_amount_without_fee(pool_state, input_vault_amount, output_vault_amount)?;
 
-                (
-                    TradeDirection::ZeroForOne,
-                    total_input_token_amount,
-                    total_output_token_amount,
-                )
-            } else if input_vault_key == pool_state.token_1_vault
-                && output_vault_key == pool_state.token_0_vault
-            {
-                let (total_output_token_amount, total_input_token_amount) =
-                    vault_amount_without_fee(pool_state, output_vault_amount, input_vault_amount)?;
+            (total_input_token_amount, total_output_token_amount)
+        } else if input_vault_key == pool_state.token1_vault
+            && output_vault_key == pool_state.token0_vault
+        {
+            let (total_output_token_amount, total_input_token_amount) =
+                vault_amount_without_fee(pool_state, output_vault_amount, input_vault_amount)?;
 
-                (
-                    TradeDirection::OneForZero,
-                    total_input_token_amount,
-                    total_output_token_amount,
-                )
-            } else {
-                anyhow::bail!("Invalid vault");
-            };
+            (total_input_token_amount, total_output_token_amount)
+        } else {
+            anyhow::bail!("Invalid vault");
+        };
 
         if total_output_token_amount < output_amount {
             anyhow::bail!("Vault does not contain enough tokens");
@@ -250,7 +233,6 @@ pub fn swap_base_output(
             amm_config.fund_fee_rate,
             block_timestamp,
             observation_state,
-            trade_direction,
         ) else {
             anyhow::bail!("Can't swap");
         };
@@ -292,10 +274,10 @@ pub fn vault_amount_without_fee(
 ) -> anyhow::Result<(u64, u64)> {
     Ok((
         vault_0
-            .checked_sub(pool.protocol_fees_token_0 + pool.fund_fees_token_0)
+            .checked_sub(pool.protocol_fees_token0 + pool.fund_fees_token0)
             .ok_or(anyhow::format_err!("invalid sub"))?,
         vault_1
-            .checked_sub(pool.protocol_fees_token_1 + pool.fund_fees_token_1)
+            .checked_sub(pool.protocol_fees_token1 + pool.fund_fees_token1)
             .ok_or(anyhow::format_err!("invalid sub"))?,
     ))
 }

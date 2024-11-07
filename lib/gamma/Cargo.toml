@@ -1,0 +1,17 @@
+[package]
+name = "gamma"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "gamma"
+
+[features]
+no-entrypoint = []
+cpi = ["no-entrypoint"]
+
+[dependencies]
+anchor-lang = "0.29.0"
+anchor-gen = "0.3.1"
+num-traits = "0.2.19"
