@@ -240,14 +240,14 @@ impl Edge {
 
         let Ok(decimals) = token_cache.token(self.input_mint).map(|x| x.decimals) else {
             let mut state = self.state.write().unwrap();
-            info!("update_internal no decimals for {}", self.input_mint);
+            trace!("no decimals for {}", self.input_mint);
             state.is_valid = false;
             return;
         };
         let Some(price) = price_cache.price_ui(self.input_mint) else {
             let mut state = self.state.write().unwrap();
             state.is_valid = false;
-            // info!("update_internal no price for {}", self.input_mint);
+            trace!("no price for {}", self.input_mint);
             return;
         };
 

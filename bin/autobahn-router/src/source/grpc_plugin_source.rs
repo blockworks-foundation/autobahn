@@ -70,8 +70,6 @@ pub async fn feed_data_geyser(
     subscribed_token_accounts: &HashSet<Pubkey>,
     sender: async_channel::Sender<SourceMessage>,
 ) -> anyhow::Result<()> {
-
-    println!("feed_data_geyser a:{subscribed_accounts:?} p:{subscribed_programs:?} t:{subscribed_token_accounts:?}");
     let use_compression = snapshot_config.rpc_support_compression.unwrap_or(false);
     let number_of_accounts_per_gma = snapshot_config.number_of_accounts_per_gma.unwrap_or(100);
     let grpc_connection_string = match &grpc_config.connection_string.chars().next().unwrap() {
@@ -746,7 +744,7 @@ async fn process_account_updated_from_sources(
             metrics::ACCOUNT_SNAPSHOTS
                 .with_label_values(&[&label])
                 .inc();
-            info!(
+            debug!(
                 "processing snapshot for program_id {} -> size={} & missing size={}...",
                 update
                     .program_id
@@ -764,11 +762,12 @@ async fn process_account_updated_from_sources(
                 metrics::GRPC_SNAPSHOT_ACCOUNT_WRITES.inc();
                 metrics::GRPC_ACCOUNT_WRITE_QUEUE.set(account_write_queue_sender.len() as i64);
 
-                // if !filters.contains(&account.pubkey) && update.program_id.is_none() {
-                //     info!("filtered account {:?}", account.pubkey);
+                // TODO: disabled for eclipse launch, was causing issues with the program id
+                //       subscription for invariant
+                // if !filters.contains(&account.pubkey) {
                 //     continue;
                 // }
-                
+
                 updated_accounts.push(account);
             }
             account_write_queue_sender
@@ -781,7 +780,7 @@ async fn process_account_updated_from_sources(
                     warn!("failed to send feed matadata event: {}", e);
                 }
             }
-            info!("processing snapshot done");
+            debug!("processing snapshot done");
             if let Err(e) = metadata_sender(FeedMetadata::SnapshotEnd(update.program_id)) {
                 warn!("failed to send feed matadata event: {}", e);
             }

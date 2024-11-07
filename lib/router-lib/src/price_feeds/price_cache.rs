@@ -14,10 +14,14 @@ impl PriceCache {
     pub fn new(
         mut exit: tokio::sync::broadcast::Receiver<()>,
         mut receiver: tokio::sync::broadcast::Receiver<PriceUpdate>,
-    ) -> (PriceCache, JoinHandle<()>) {        
+    ) -> (PriceCache, JoinHandle<()>) {
         let latest_prices = Arc::new(DashMap::new());
-        //latest_prices.insert(Pubkey::from_str("So11111111111111111111111111111111111111112").unwrap(), 2500.0);
-        latest_prices.insert(Pubkey::from_str("AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE").unwrap(), 1.0);
+        // seed price cache with stable coin prices, as a point of reference
+        latest_prices.insert(
+            Pubkey::from_str("AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE").unwrap(),
+            1.0,
+        );
+
         let latest_prices_write = latest_prices.clone();
 
         let job = tokio::spawn(async move {

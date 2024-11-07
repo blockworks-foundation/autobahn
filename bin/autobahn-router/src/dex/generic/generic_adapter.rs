@@ -4,7 +4,7 @@ use std::sync::Arc;
 use itertools::Itertools;
 use router_lib::dex::{DexInterface, DexSubscriptionMode};
 use router_lib::mango::mango_fetcher::MangoMetadata;
-use tracing::{info, trace};
+use tracing::info;
 
 use crate::edge::Edge;
 use crate::edge_updater::Dex;
@@ -46,11 +46,8 @@ pub async fn build_dex_internal(
     let edges_per_pk_src = dex.edges_per_pk();
     let mut edges_per_pk = HashMap::new();
 
-    info!("dex {} enabled={enabled} add_mango_tokens={add_mango_tokens} take_all_mints={take_all_mints} mints={mints:?} edges={}", dex.name(), edges_per_pk_src.len());
-
-    for (key, edge_ids) in edges_per_pk_src {
-
-        let edges = edge_ids.clone()
+    for (key, edges) in edges_per_pk_src {
+        let edges = edges
             .into_iter()
             .filter(|x| {
                 let keep = take_all_mints
@@ -68,9 +65,6 @@ pub async fn build_dex_internal(
                 })
             })
             .collect_vec();
-
-        trace!("build_dex_internal key={key:?} edge_ids={} edges={}", edge_ids.len(), edges.len());
-
         if edges.len() > 0 {
             edges_per_pk.insert(key, edges);
         }

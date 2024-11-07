@@ -86,7 +86,6 @@ where
             all_mints.insert(sol_mint);
             all_mints.insert(usdc_mint);
 
-
             let hot_mints = hot_mints_cache.read().unwrap().get();
             let mints = match generate_mints(
                 &mode,
@@ -99,7 +98,7 @@ where
                 None => break,
             };
 
-            info!("Running a path warmup loop for {} mints", mints.len());
+            debug!("Running a path warmup loop for {} mints", mints.len());
             let mut counter = 0;
             let mut skipped = 0;
             let time = Instant::now();
@@ -121,13 +120,10 @@ where
                     continue;
                 };
                 if price_ui <= 0.000001 {
-                    info!("skipped {from_mint:?} price is low {price_ui}");
                     skipped += 1;
                     continue;
                 }
                 let Ok(token) = token_cache.token(*from_mint) else {
-                    info!("skipped {from_mint:?} no token cache entry");
-
                     skipped += 1;
                     continue;
                 };
@@ -135,7 +131,7 @@ where
                 let decimals = token.decimals;
                 let multiplier = 10u64.pow(decimals as u32) as f64;
 
-                info!("Warming up {}", debug_tools::name(&from_mint),);
+                trace!("Warming up {}", debug_tools::name(&from_mint),);
 
                 for amount_ui in &path_warming_amounts {
                     let amount_native =

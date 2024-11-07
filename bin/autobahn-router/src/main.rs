@@ -241,7 +241,6 @@ async fn main() -> anyhow::Result<()> {
         }),
     };
 
-    info!("config = {config:?}");
     let dexs: Vec<Dex> = [
         dex::generic::build_dex!(
             OrcaDex::initialize(&mut router_rpc, orca_config).await?,
