@@ -2,12 +2,15 @@ use crate::routing_types::{Route, RouteStep};
 use crate::swap::Swap;
 use anchor_lang::Id;
 use anchor_spl::associated_token::get_associated_token_address;
-use anchor_spl::token::Token;
+use anchor_spl::token::{spl_token, Token};
+use anchor_spl::token_2022::spl_token_2022;
 use autobahn_executor::swap_ix::generate_swap_ix_data;
-use router_lib::dex::{AccountProviderView, SwapInstruction, SwapMode};
+use router_lib::dex::{AccountProvider, AccountProviderView, SwapInstruction, SwapMode};
 use solana_program::instruction::Instruction;
 use solana_program::pubkey::Pubkey;
+use solana_sdk::account::ReadableAccount;
 use std::str::FromStr;
+use std::sync::Arc;
 
 const CU_PER_HOP_DEFAULT: u32 = 80_000;
 const CU_BASE: u32 = 150_000;
@@ -26,6 +29,7 @@ pub trait SwapStepInstructionBuilder {
 pub trait SwapInstructionsBuilder {
     fn build_ixs(
         &self,
+        live_account_provider: Arc<dyn AccountProvider>,
         wallet_pk: &Pubkey,
         route: &Route,
         wrap_and_unwrap_sol: bool,
@@ -81,6 +85,7 @@ impl<T: SwapStepInstructionBuilder> SwapInstructionsBuilderImpl<T> {
 impl<T: SwapStepInstructionBuilder> SwapInstructionsBuilder for SwapInstructionsBuilderImpl<T> {
     fn build_ixs(
         &self,
+        live_account_provider: Arc<dyn AccountProvider>,
         wallet_pk: &Pubkey,
         route: &Route,
         auto_wrap_sol: bool,
@@ -101,7 +106,7 @@ impl<T: SwapStepInstructionBuilder> SwapInstructionsBuilder for SwapInstructions
             Pubkey::from_str("So11111111111111111111111111111111111111112").unwrap();
 
         if auto_wrap_sol && route.input_mint == sol_mint {
-            Self::create_ata(&wallet_pk, &mut setup_instructions, &sol_mint);
+            Self::create_ata(&wallet_pk, &mut setup_instructions, &sol_mint, false);
             let wsol_account = get_associated_token_address(wallet_pk, &sol_mint);
 
             let in_amount = match swap_mode {
@@ -145,13 +150,24 @@ impl<T: SwapStepInstructionBuilder> SwapInstructionsBuilder for SwapInstructions
 
         for step in &swap_instructions {
             if auto_create_out || (step.out_mint == sol_mint && auto_wrap_sol) {
-                Self::create_ata(&wallet_pk, &mut setup_instructions, &step.out_mint);
+                let out_is_token_2022 = (step.out_mint != sol_mint)
+                    && spl_token_2022::ID.eq(live_account_provider
+                        .account(&step.out_mint)?
+                        .account
+                        .owner());
+                Self::create_ata(
+                    wallet_pk,
+                    &mut setup_instructions,
+                    &step.out_mint,
+                    out_is_token_2022,
+                );
+
                 cu_estimate += 12_000;
             }
 
             if step.out_mint == sol_mint && auto_wrap_sol {
                 let wsol_account = get_associated_token_address(wallet_pk, &sol_mint);
-                Self::close_wsol_ata(&wallet_pk, &mut cleanup_instructions, &wsol_account)?;
+                Self::close_wsol_ata(wallet_pk, &mut cleanup_instructions, &wsol_account)?;
                 cu_estimate += 12_000;
             }
 
@@ -190,7 +206,7 @@ impl<T: SwapStepInstructionBuilder> SwapInstructionsBuilder for SwapInstructions
 
 impl<T: SwapStepInstructionBuilder> SwapInstructionsBuilderImpl<T> {
     fn close_wsol_ata(
-        wallet_pk: &&Pubkey,
+        wallet_pk: &Pubkey,
         cleanup_instructions: &mut Vec<Instruction>,
         wsol_account: &Pubkey,
     ) -> anyhow::Result<()> {
@@ -204,13 +220,22 @@ impl<T: SwapStepInstructionBuilder> SwapInstructionsBuilderImpl<T> {
         Ok(())
     }
 
-    fn create_ata(wallet_pk: &&Pubkey, setup_instructions: &mut Vec<Instruction>, mint: &Pubkey) {
+    fn create_ata(
+        wallet_pk: &Pubkey,
+        setup_instructions: &mut Vec<Instruction>,
+        mint: &Pubkey,
+        token_program_is_2022: bool,
+    ) {
         setup_instructions.push(
             spl_associated_token_account::instruction::create_associated_token_account_idempotent(
                 &wallet_pk,
                 &wallet_pk,
                 &mint,
-                &Token::id(),
+                if token_program_is_2022 {
+                    &spl_token_2022::ID
+                } else {
+                    &spl_token::ID
+                },
             ),
         );
     }
