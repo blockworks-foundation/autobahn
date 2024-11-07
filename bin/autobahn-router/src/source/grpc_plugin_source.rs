@@ -746,7 +746,7 @@ async fn process_account_updated_from_sources(
             metrics::ACCOUNT_SNAPSHOTS
                 .with_label_values(&[&label])
                 .inc();
-            debug!(
+            info!(
                 "processing snapshot for program_id {} -> size={} & missing size={}...",
                 update
                     .program_id
@@ -780,7 +780,7 @@ async fn process_account_updated_from_sources(
                     warn!("failed to send feed matadata event: {}", e);
                 }
             }
-            debug!("processing snapshot done");
+            info!("processing snapshot done");
             if let Err(e) = metadata_sender(FeedMetadata::SnapshotEnd(update.program_id)) {
                 warn!("failed to send feed matadata event: {}", e);
             }

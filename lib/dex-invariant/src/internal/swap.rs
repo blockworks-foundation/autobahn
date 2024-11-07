@@ -16,7 +16,7 @@ pub struct InvariantSimulationParams {
     pub sqrt_price_limit: Price,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct InvariantSwapResult {
     pub in_amount: u64,
     pub out_amount: u64,

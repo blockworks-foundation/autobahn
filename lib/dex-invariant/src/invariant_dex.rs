@@ -26,7 +26,7 @@ use solana_client::{
     rpc_filter::RpcFilterType,
 };
 use solana_sdk::{account::ReadableAccount, program_pack::Pack, pubkey::Pubkey};
-use tracing::info;
+use tracing::{error, info};
 
 use crate::{
     invariant_edge::{InvariantEdge, InvariantEdgeIdentifier, InvariantSimulationParams},
@@ -287,7 +287,6 @@ impl DexInterface for InvariantDex {
             .collect();
 
         let tickmaps = pools.iter().map(|p| p.1.tickmap).collect();
-        info!("gMA tickmaps {tickmaps:?}");
         let tickmaps = rpc.get_multiple_accounts(&tickmaps).await?;
 
         let edges_per_pk = {
@@ -346,6 +345,7 @@ impl DexInterface for InvariantDex {
             .unwrap();
         let edge = Self::load_edge(id, chain_data)?;
 
+        info!("load edge with id={id:?} -> {edge:?}");
         Ok(Arc::new(edge))
     }
 
@@ -369,6 +369,9 @@ impl DexInterface for InvariantDex {
             calculate_price_sqrt(get_max_tick(edge.pool.tick_spacing)?)
         };
 
+        info!("quote edge with id={id:?} amount={in_amount} -> {edge:?}");
+
+        
         let simulation = edge
             .simulate_invariant_swap(&InvariantSimulationParams {
                 x_to_y,
@@ -376,10 +379,13 @@ impl DexInterface for InvariantDex {
                 sqrt_price_limit,
                 by_amount_in: true,
             })
-            .map_err(|e| anyhow::format_err!(e))
+            .map_err(|e| { error!("quote id={id:?} error: {:?}", e); anyhow::format_err!(e) })
             .with_context(|| format!("pool {} x_to_y {}", id.pool, id.x_to_y))?;
 
         let fee_mint = if x_to_y { id.token_x } else { id.token_y };
+
+        info!("quote edge with id={id:?} amount={in_amount} -> {simulation:?}");
+
 
         Ok(Quote {
             in_amount: simulation.in_amount,

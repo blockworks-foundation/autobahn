@@ -209,6 +209,7 @@ pub fn spawn_updater_job(
 
 impl EdgeUpdater {
     fn detect_and_handle_slot_lag(&mut self, slot: Result<u64, RecvError>) {
+        info!("detect_and_handle_slot_lag {slot:?}");
         let state = &mut self.state;
         if state.latest_slot_processed == 0 {
             return;
@@ -282,6 +283,7 @@ impl EdgeUpdater {
     }
 
     fn on_metadata_update(&mut self, res: Result<FeedMetadata, RecvError>) {
+        info!("metadata_update {res:?}");
         let state = &mut self.state;
         match res {
             Ok(v) => match v {
@@ -293,6 +295,7 @@ impl EdgeUpdater {
                 FeedMetadata::SnapshotEnd(x) => {
                     if let Some(x) = x {
                         if x == spl_token::ID {
+                            // TODO: token2022 support for CP style amms
                             // TODO Handle multiples owners
                             state.dirty_token_accounts_for_owners = true;
                         } else {
