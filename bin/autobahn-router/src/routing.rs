@@ -1249,7 +1249,7 @@ impl Routing {
             bail!(RoutingError::UnsupportedOutputMint(output_mint.clone()));
         };
 
-        trace!(
+        info!(
             input_index = input_index.idx_raw(),
             output_index = output_index.idx_raw(),
             max_path_length,
@@ -1270,6 +1270,7 @@ impl Routing {
                 .map(|paths| self.lookup_edge_index_paths(paths.iter()));
 
             if (p1.is_none() && p2.is_none()) || ignore_cache {
+                info!("no cache");
                 None
             } else {
                 let cached_paths = p1
@@ -1277,6 +1278,7 @@ impl Routing {
                     .into_iter()
                     .chain(p2.unwrap_or(vec![]).into_iter())
                     .collect_vec();
+                info!("cached {}", cached_paths.len());
                 Some(cached_paths)
             }
         };
@@ -1394,9 +1396,9 @@ impl Routing {
         }
 
         // Debug
-        if tracing::event_enabled!(Level::TRACE) {
+        if true {
             for (path, out_amount, out_amount_dumb) in &path_and_output {
-                trace!(
+                info!(
                     "potential path: [out={}] [dumb={}] {}",
                     out_amount,
                     out_amount_dumb,
@@ -1451,7 +1453,7 @@ impl Routing {
             let price_impact = expected_ratio / actual_ratio * 10_000.0 - 10_000.0;
             let price_impact_bps = price_impact.round() as u64;
 
-            trace!(
+            info!(
                 price_impact_bps,
                 out_amount_for_small_amount,
                 out_amount_for_request,
@@ -1487,7 +1489,7 @@ impl Routing {
             }
 
             if self.overquote > 0.0 {
-                debug!(
+                info!(
                     actual_in_amount,
                     actual_out_amount,
                     overquote_in_amount,
@@ -1502,6 +1504,7 @@ impl Routing {
             let accounts = self
                 .capture_accounts(chain_data, &out_path, original_amount)
                 .ok();
+            
 
             return Ok(Route {
                 input_mint: *input_mint,
@@ -1547,16 +1550,19 @@ impl Routing {
         output_index: MintNodeIndex,
         used_cached_paths: bool,
     ) -> anyhow::Result<Route> {
+
+
+        info!("failsafe triggered");
         // It is possible for cache path to became invalid after some account write or failed tx (cooldown)
         // If we used cache but can't find any valid path, try again without the cache
         let can_try_one_more_hop = max_path_length != self.max_path_length;
         if !ignore_cache && (used_cached_paths || can_try_one_more_hop) {
             if used_cached_paths {
-                debug!("Invalid cached path, retrying without cache");
+                info!("Invalid cached path, retrying without cache");
                 let mut cache = self.path_discovery_cache.write().unwrap();
                 cache.invalidate(input_index, output_index, max_accounts);
             } else {
-                debug!("No path within boundaries, retrying with +1 hop");
+                info!("No path within boundaries, retrying with +1 hop");
             }
             return self.find_best_route(
                 chain_data,

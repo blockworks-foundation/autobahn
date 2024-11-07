@@ -46,12 +46,11 @@ pub async fn build_dex_internal(
     let edges_per_pk_src = dex.edges_per_pk();
     let mut edges_per_pk = HashMap::new();
 
-    info!("build_dex_internal {} enabled={enabled} add_mango_tokens={add_mango_tokens} take_all_mints={take_all_mints} mints={mints:?}", dex.name());
+    info!("dex {} enabled={enabled} add_mango_tokens={add_mango_tokens} take_all_mints={take_all_mints} mints={mints:?} edges={}", dex.name(), edges_per_pk_src.len());
 
-    for (key, edges) in edges_per_pk_src {
-        trace!("build_dex_internal key={key:?} edges={}", edges.len());
+    for (key, edge_ids) in edges_per_pk_src {
 
-        let edges = edges
+        let edges = edge_ids.clone()
             .into_iter()
             .filter(|x| {
                 let keep = take_all_mints
@@ -69,6 +68,9 @@ pub async fn build_dex_internal(
                 })
             })
             .collect_vec();
+
+        trace!("build_dex_internal key={key:?} edge_ids={} edges={}", edge_ids.len(), edges.len());
+
         if edges.len() > 0 {
             edges_per_pk.insert(key, edges);
         }

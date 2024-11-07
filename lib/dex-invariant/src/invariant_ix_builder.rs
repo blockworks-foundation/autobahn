@@ -8,6 +8,7 @@ use sha2::{Digest, Sha256};
 use solana_program::instruction::Instruction;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::account::ReadableAccount;
+use tracing::info;
 
 pub fn build_swap_ix(
     id: &InvariantEdgeIdentifier,

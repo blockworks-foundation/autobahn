@@ -764,10 +764,11 @@ async fn process_account_updated_from_sources(
                 metrics::GRPC_SNAPSHOT_ACCOUNT_WRITES.inc();
                 metrics::GRPC_ACCOUNT_WRITE_QUEUE.set(account_write_queue_sender.len() as i64);
 
-                if !filters.contains(&account.pubkey) {
-                    continue;
-                }
-
+                // if !filters.contains(&account.pubkey) && update.program_id.is_none() {
+                //     info!("filtered account {:?}", account.pubkey);
+                //     continue;
+                // }
+                
                 updated_accounts.push(account);
             }
             account_write_queue_sender

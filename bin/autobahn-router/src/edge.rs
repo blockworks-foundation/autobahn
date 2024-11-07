@@ -247,7 +247,7 @@ impl Edge {
         let Some(price) = price_cache.price_ui(self.input_mint) else {
             let mut state = self.state.write().unwrap();
             state.is_valid = false;
-            info!("update_internal no price for {}", self.input_mint);
+            // info!("update_internal no price for {}", self.input_mint);
             return;
         };
 

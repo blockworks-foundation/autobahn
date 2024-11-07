@@ -1,6 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
+    collections::{HashMap, HashSet}, str::FromStr, sync::Arc
 };
 
 use anchor_lang::{AnchorDeserialize, Id};
@@ -15,6 +14,7 @@ use invariant_types::{
     structs::{Pool, Tick, Tickmap, TickmapView, TICK_CROSSES_PER_IX, TICK_LIMIT},
     ANCHOR_DISCRIMINATOR_SIZE, TICK_SEED,
 };
+use itertools::Itertools;
 use router_feed_lib::router_rpc_client::{RouterRpcClient, RouterRpcClientTrait};
 use router_lib::dex::{
     AccountProviderView, DexEdge, DexEdgeIdentifier, DexInterface, DexSubscriptionMode, Quote,
@@ -26,7 +26,7 @@ use solana_client::{
     rpc_filter::RpcFilterType,
 };
 use solana_sdk::{account::ReadableAccount, program_pack::Pack, pubkey::Pubkey};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::{
     invariant_edge::{InvariantEdge, InvariantEdgeIdentifier, InvariantSimulationParams},
@@ -256,14 +256,10 @@ impl DexInterface for InvariantDex {
             .map(|(pk, _)| pk)
             .collect::<HashSet<_>>();
 
-        info!("Number of banned Invariant reserves {}", banned_reserves.len());
-
         pools.retain(|p| {
             !(banned_reserves.contains(&p.1.token_x_reserve)
                 || banned_reserves.contains(&p.1.token_y_reserve))
         });
-
-        info!("Number of Invariant Pools: {:?}", pools.len());
 
         let edge_pairs: Vec<(Arc<InvariantEdgeIdentifier>, Arc<InvariantEdgeIdentifier>)> = pools
             .iter()
@@ -297,6 +293,7 @@ impl DexInterface for InvariantDex {
             {
                 let entry: Vec<Arc<dyn DexEdgeIdentifier>> =
                     vec![edge_x_to_y.clone(), edge_y_to_x.clone()];
+
                 map.insert(*pool_pk, entry.clone());
                 map.insert(*tickmap_pk, entry.clone());
 
@@ -311,6 +308,8 @@ impl DexInterface for InvariantDex {
         };
 
         info!("inv init done");
+        let poolpk = Pubkey::from_str("G8Skt6kgqVL9ocYn4aYVGs3gUg8EfQrTJAkA2qt3gcs8").unwrap();
+        info!("pool edges: {:?}", edges_per_pk.get(&poolpk).map(|ids| ids.iter().map(|id| vec![id.input_mint(), id.output_mint()]).collect_vec()));
 
 
         Ok(Arc::new(InvariantDex {
@@ -343,10 +342,9 @@ impl DexInterface for InvariantDex {
             .as_any()
             .downcast_ref::<InvariantEdgeIdentifier>()
             .unwrap();
-        let edge = Self::load_edge(id, chain_data)?;
-
-        info!("load edge with id={id:?} -> {edge:?}");
-        Ok(Arc::new(edge))
+        let edge: Result<InvariantEdge, anyhow::Error> = Self::load_edge(id, chain_data);
+        debug!("load edge with id={id:?} -> {edge:?}");
+        Ok(Arc::new(edge?))
     }
 
     fn quote(
@@ -368,9 +366,6 @@ impl DexInterface for InvariantDex {
         } else {
             calculate_price_sqrt(get_max_tick(edge.pool.tick_spacing)?)
         };
-
-        info!("quote edge with id={id:?} amount={in_amount} -> {edge:?}");
-
         
         let simulation = edge
             .simulate_invariant_swap(&InvariantSimulationParams {
@@ -379,13 +374,10 @@ impl DexInterface for InvariantDex {
                 sqrt_price_limit,
                 by_amount_in: true,
             })
-            .map_err(|e| { error!("quote id={id:?} error: {:?}", e); anyhow::format_err!(e) })
+            .map_err(|e| { debug!("quote id={id:?} error: {:?}", e); anyhow::format_err!(e) })
             .with_context(|| format!("pool {} x_to_y {}", id.pool, id.x_to_y))?;
 
         let fee_mint = if x_to_y { id.token_x } else { id.token_y };
-
-        info!("quote edge with id={id:?} amount={in_amount} -> {simulation:?}");
-
 
         Ok(Quote {
             in_amount: simulation.in_amount,

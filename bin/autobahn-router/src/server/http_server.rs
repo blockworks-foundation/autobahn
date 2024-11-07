@@ -168,6 +168,8 @@ impl HttpServer {
                 swap_mode,
             )?;
 
+            info!("best route found");
+
             let (bytes, accounts_count) = Self::build_swap_tx(
                 address_lookup_table_addresses.clone(),
                 hash_provider.clone(),
@@ -184,6 +186,9 @@ impl HttpServer {
             )
             .await?;
 
+            info!("tx encoded");
+
+
             let tx_size = bytes.len();
             if accounts_count <= MAX_ACCOUNTS_PER_TX && tx_size < MAX_TX_SIZE {
                 break Ok(route_candidate);
@@ -197,6 +202,8 @@ impl HttpServer {
             }
         };
 
+        info!("quote -> err ? {}", route.is_err());
+
         let route: Route = route?;
 
         Self::log_repriced_amount(live_account_provider, reprice_probability, &route);
@@ -208,6 +215,8 @@ impl HttpServer {
             ((route.out_amount as f64 * (10_000f64 - input.slippage_bps as f64)) / 10_000f64)
                 .floor() as u64
         };
+
+        info!("serialize plan");
 
         let route_plan = route
             .steps
@@ -226,6 +235,9 @@ impl HttpServer {
                 }),
             })
             .collect_vec();
+
+        info!("encode accounts");
+
 
         let accounts = match route.accounts {
             None => None,
@@ -368,6 +380,8 @@ impl HttpServer {
     ) -> Result<(Vec<u8>, usize), AppError> {
         let wallet_pk = Pubkey::from_str(&wallet_pk)?;
 
+        info!("build_ixs");
+
         let ixs = ix_builder.build_ixs(
             &wallet_pk,
             route_plan,
@@ -383,6 +397,8 @@ impl HttpServer {
             ComputeBudgetInstruction::set_compute_unit_limit(ixs.cu_estimate),
         ];
 
+        info!("serialize ixs");
+
         let transaction_addresses = ixs.accounts().into_iter().collect();
         let instructions = compute_budget_ixs
             .into_iter()
@@ -391,10 +407,15 @@ impl HttpServer {
             .chain(ixs.cleanup_instructions.into_iter())
             .collect_vec();
 
+
+            info!("load alts");
         let all_alts = Self::load_all_alts(address_lookup_table_addresses, alt_provider).await;
+        info!("optimize alts");
         let alts = alt_optimizer::get_best_alt(&all_alts, &transaction_addresses)?;
         let accounts = transaction_addresses.iter().unique().count()
             + alts.iter().map(|x| x.key).unique().count();
+
+            info!("compile message");
 
         let v0_message = solana_sdk::message::v0::Message::try_compile(
             &wallet_pk,
@@ -405,6 +426,7 @@ impl HttpServer {
 
         let message = VersionedMessage::V0(v0_message);
         let tx = VersionedTransaction::try_new(message, &[&NullSigner::new(&wallet_pk)])?;
+        info!("serialize message");
         let bytes = bincode::serialize(&tx)?;
 
         Ok((bytes, accounts))
