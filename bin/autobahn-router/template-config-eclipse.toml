@@ -48,7 +48,7 @@ add_mango_tokens = false
 [routing]
 path_cache_validity_ms = 30000
 path_warming_mode = "All"
-path_warming_amounts = [100, 1000, 10_000]
+path_warming_amounts = [1, 3, 10]
 path_warming_for_mints = [
     "So11111111111111111111111111111111111111112",  # ETH
     "AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE",  # USDC
