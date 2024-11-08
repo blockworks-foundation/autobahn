@@ -53,7 +53,6 @@ impl DexInterface for OrcaDex {
     async fn initialize(
         rpc: &mut RouterRpcClient,
         options: HashMap<String, String>,
-        enable_compression: bool,
     ) -> anyhow::Result<Arc<dyn DexInterface>>
     where
         Self: Sized,
@@ -65,13 +64,7 @@ impl DexInterface for OrcaDex {
         };
 
         result.edges.extend(
-            Self::load_edge_identifiers(
-                rpc,
-                &result.program_name,
-                &result.program_id,
-                enable_compression,
-            )
-            .await?,
+            Self::load_edge_identifiers(rpc, &result.program_name, &result.program_id).await?,
         );
 
         Ok(Arc::new(result))
@@ -223,9 +216,8 @@ impl OrcaDex {
         rpc: &mut RouterRpcClient,
         program_name: &str,
         program_id: &Pubkey,
-        enable_compression: bool,
     ) -> anyhow::Result<HashMap<Pubkey, Vec<Arc<dyn DexEdgeIdentifier>>>> {
-        let whirlpools = fetch_all_whirlpools(rpc, program_id, enable_compression).await?;
+        let whirlpools = fetch_all_whirlpools(rpc, program_id).await?;
 
         let vaults = whirlpools
             .iter()

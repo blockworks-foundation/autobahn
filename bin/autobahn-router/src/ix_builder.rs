@@ -265,7 +265,6 @@ mod tests {
         async fn initialize(
             _rpc: &mut RouterRpcClient,
             _options: HashMap<String, String>,
-            _enable_compression: bool,
         ) -> anyhow::Result<Arc<dyn DexInterface>>
         where
             Self: Sized,

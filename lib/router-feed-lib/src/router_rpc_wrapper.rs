@@ -17,6 +17,7 @@ use crate::router_rpc_client::RouterRpcClientTrait;
 
 pub struct RouterRpcWrapper {
     pub rpc: RpcClient,
+    pub gpa_compression_enabled: bool,
 }
 
 #[async_trait]
@@ -54,20 +55,23 @@ impl RouterRpcClientTrait for RouterRpcWrapper {
         &mut self,
         pubkey: &Pubkey,
         config: RpcProgramAccountsConfig,
-        compression_enabled: bool,
     ) -> anyhow::Result<Vec<AccountWrite>> {
-        if !compression_enabled {
-            Ok(
-                get_uncompressed_program_account_rpc(&self.rpc, &HashSet::from([*pubkey]), config)
-                    .await?
-                    .1,
-            )
-        } else {
+        if self.is_gpa_compression_enabled() {
             Ok(
                 get_compressed_program_account_rpc(&self.rpc, &HashSet::from([*pubkey]), config)
                     .await?
                     .1,
             )
+        } else {
+            Ok(
+                get_uncompressed_program_account_rpc(&self.rpc, &HashSet::from([*pubkey]), config)
+                    .await?
+                    .1,
+            )
         }
+    }
+
+    fn is_gpa_compression_enabled(&self) -> bool {
+        self.gpa_compression_enabled
     }
 }

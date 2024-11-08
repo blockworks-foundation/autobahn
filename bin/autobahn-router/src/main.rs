@@ -235,16 +235,18 @@ async fn main() -> anyhow::Result<()> {
     );
     cropper.insert("program_name".to_string(), "Cropper".to_string());
 
-    let enable_compression = source_config.rpc_support_compression.unwrap_or_default();
+    let gpa_compression_enabled = source_config.rpc_support_compression.unwrap_or_default();
     let mut router_rpc = RouterRpcClient {
         rpc: Box::new(RouterRpcWrapper {
             rpc: build_rpc(&source_config),
+            gpa_compression_enabled,
         }),
+        gpa_compression_enabled,
     };
 
     let dexs: Vec<Dex> = [
         dex::generic::build_dex!(
-            OrcaDex::initialize(&mut router_rpc, orca_config, enable_compression).await?,
+            OrcaDex::initialize(&mut router_rpc, orca_config).await?,
             &mango_data,
             config.orca.enabled,
             config.orca.add_mango_tokens,
@@ -252,7 +254,7 @@ async fn main() -> anyhow::Result<()> {
             &config.orca.mints
         ),
         dex::generic::build_dex!(
-            OrcaDex::initialize(&mut router_rpc, cropper, enable_compression).await?,
+            OrcaDex::initialize(&mut router_rpc, cropper).await?,
             &mango_data,
             config.cropper.enabled,
             config.cropper.add_mango_tokens,
@@ -260,8 +262,7 @@ async fn main() -> anyhow::Result<()> {
             &config.cropper.mints
         ),
         dex::generic::build_dex!(
-            dex_saber::SaberDex::initialize(&mut router_rpc, HashMap::new(), enable_compression)
-                .await?,
+            dex_saber::SaberDex::initialize(&mut router_rpc, HashMap::new()).await?,
             &mango_data,
             config.saber.enabled,
             config.saber.add_mango_tokens,
@@ -269,12 +270,7 @@ async fn main() -> anyhow::Result<()> {
             &config.saber.mints
         ),
         dex::generic::build_dex!(
-            dex_raydium_cp::RaydiumCpDex::initialize(
-                &mut router_rpc,
-                HashMap::new(),
-                enable_compression
-            )
-            .await?,
+            dex_raydium_cp::RaydiumCpDex::initialize(&mut router_rpc, HashMap::new(),).await?,
             &mango_data,
             config.raydium_cp.enabled,
             config.raydium_cp.add_mango_tokens,
@@ -282,12 +278,7 @@ async fn main() -> anyhow::Result<()> {
             &config.raydium_cp.mints
         ),
         dex::generic::build_dex!(
-            dex_raydium::RaydiumDex::initialize(
-                &mut router_rpc,
-                HashMap::new(),
-                enable_compression
-            )
-            .await?,
+            dex_raydium::RaydiumDex::initialize(&mut router_rpc, HashMap::new(),).await?,
             &mango_data,
             config.raydium.enabled,
             config.raydium.add_mango_tokens,
@@ -295,12 +286,7 @@ async fn main() -> anyhow::Result<()> {
             &config.raydium.mints
         ),
         dex::generic::build_dex!(
-            dex_openbook_v2::OpenbookV2Dex::initialize(
-                &mut router_rpc,
-                HashMap::new(),
-                enable_compression
-            )
-            .await?,
+            dex_openbook_v2::OpenbookV2Dex::initialize(&mut router_rpc, HashMap::new(),).await?,
             &mango_data,
             config.openbook_v2.enabled,
             config.openbook_v2.add_mango_tokens,
@@ -308,12 +294,7 @@ async fn main() -> anyhow::Result<()> {
             &config.openbook_v2.mints
         ),
         dex::generic::build_dex!(
-            dex_infinity::InfinityDex::initialize(
-                &mut router_rpc,
-                HashMap::new(),
-                enable_compression
-            )
-            .await?,
+            dex_infinity::InfinityDex::initialize(&mut router_rpc, HashMap::new(),).await?,
             &mango_data,
             config.infinity.enabled,
             false,
@@ -321,12 +302,7 @@ async fn main() -> anyhow::Result<()> {
             &vec![]
         ),
         dex::generic::build_dex!(
-            dex_invariant::InvariantDex::initialize(
-                &mut router_rpc,
-                HashMap::new(),
-                enable_compression
-            )
-            .await?,
+            dex_invariant::InvariantDex::initialize(&mut router_rpc, HashMap::new(),).await?,
             &mango_data,
             config.invariant.enabled,
             config.invariant.take_all_mints,

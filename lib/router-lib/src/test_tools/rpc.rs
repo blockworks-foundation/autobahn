@@ -67,7 +67,6 @@ impl RouterRpcClientTrait for ReplayerRpcClient {
         &mut self,
         pubkey: &Pubkey,
         config: RpcProgramAccountsConfig,
-        _compression_enabled: bool,
     ) -> anyhow::Result<Vec<AccountWrite>> {
         let config_serialized = serde_json::to_string(&config)?;
         match self
@@ -79,6 +78,10 @@ impl RouterRpcClientTrait for ReplayerRpcClient {
             Some(x) => Ok(x.clone()),
             None => anyhow::bail!("Invalid gpa"),
         }
+    }
+
+    fn is_gpa_compression_enabled(&self) -> bool {
+        false
     }
 }
 
@@ -122,12 +125,11 @@ impl RouterRpcClientTrait for DumpRpcClient {
         &mut self,
         pubkey: &Pubkey,
         config: RpcProgramAccountsConfig,
-        compression_enabled: bool,
     ) -> anyhow::Result<Vec<AccountWrite>> {
         let config_serialized = serde_json::to_string(&config)?;
         match self
             .rpc
-            .get_program_accounts_with_config(pubkey, config.clone(), compression_enabled)
+            .get_program_accounts_with_config(pubkey, config.clone())
             .await
         {
             Ok(r) => {
@@ -152,6 +154,10 @@ impl RouterRpcClientTrait for DumpRpcClient {
             }
         }
     }
+
+    fn is_gpa_compression_enabled(&self) -> bool {
+        false
+    }
 }
 
 impl Drop for DumpRpcClient {
@@ -160,7 +166,11 @@ impl Drop for DumpRpcClient {
     }
 }
 
-pub fn rpc_dumper_client(url: String, out_path: &str) -> (RouterRpcClient, ChainDataArcRw) {
+pub fn rpc_dumper_client(
+    url: String,
+    out_path: &str,
+    gpa_compression_enabled: bool,
+) -> (RouterRpcClient, ChainDataArcRw) {
     let chain_data = ChainDataArcRw::new(RwLock::new(ChainData::new()));
     let rpc_client = RouterRpcClient {
         rpc: Box::new(DumpRpcClient {
@@ -176,10 +186,13 @@ pub fn rpc_dumper_client(url: String, out_path: &str) -> (RouterRpcClient, Chain
                         Duration::from_secs(60 * 20),
                         CommitmentConfig::finalized(),
                     ),
+                    gpa_compression_enabled,
                 }),
+                gpa_compression_enabled,
             },
             path: out_path.to_string(),
         }),
+        gpa_compression_enabled,
     };
 
     (rpc_client, chain_data)
@@ -215,7 +228,10 @@ pub fn rpc_replayer_client(in_path: &str) -> (RouterRpcClient, ChainDataArcRw) {
     }
 
     let rpc = ReplayerRpcClient { dump };
-    let replayer = RouterRpcClient { rpc: Box::new(rpc) };
+    let replayer = RouterRpcClient {
+        rpc: Box::new(rpc),
+        gpa_compression_enabled: false,
+    };
     let chain_data = ChainDataArcRw::new(RwLock::new(chain_data));
 
     (replayer, chain_data)
@@ -281,7 +297,6 @@ pub async fn load_subscriptions(
                             account_config: Default::default(),
                             with_context: Some(true),
                         },
-                        false,
                     )
                     .await?;
             }
@@ -298,7 +313,6 @@ pub async fn load_subscriptions(
                             account_config: Default::default(),
                             with_context: Some(true),
                         },
-                        false,
                     )
                     .await?;
             }
@@ -319,7 +333,6 @@ pub async fn load_subscriptions(
                             account_config: Default::default(),
                             with_context: Some(true),
                         },
-                        false,
                     )
                     .await?;
             }

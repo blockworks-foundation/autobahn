@@ -289,7 +289,6 @@ pub fn simulate_swap_with_tick_array(
 pub async fn fetch_all_whirlpools(
     rpc: &mut RouterRpcClient,
     program_id: &Pubkey,
-    enable_compression: bool,
 ) -> anyhow::Result<Vec<(Pubkey, Whirlpool)>> {
     let config = RpcProgramAccountsConfig {
         filters: Some(vec![
@@ -307,7 +306,7 @@ pub async fn fetch_all_whirlpools(
         ..Default::default()
     };
     let whirlpools = rpc
-        .get_program_accounts_with_config(program_id, config, enable_compression)
+        .get_program_accounts_with_config(program_id, config)
         .await?;
     let result = whirlpools
         .iter()

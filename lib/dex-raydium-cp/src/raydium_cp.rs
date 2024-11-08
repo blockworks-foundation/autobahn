@@ -39,18 +39,12 @@ impl DexInterface for RaydiumCpDex {
     async fn initialize(
         rpc: &mut RouterRpcClient,
         _options: HashMap<String, String>,
-        enable_compression: bool,
     ) -> anyhow::Result<Arc<dyn DexInterface>>
     where
         Self: Sized,
     {
-        let pools = fetch_raydium_account::<PoolState>(
-            rpc,
-            RaydiumCpSwap::id(),
-            PoolState::LEN,
-            enable_compression,
-        )
-        .await?;
+        let pools =
+            fetch_raydium_account::<PoolState>(rpc, RaydiumCpSwap::id(), PoolState::LEN).await?;
 
         let vaults = pools
             .iter()
@@ -377,7 +371,6 @@ async fn fetch_raydium_account<T: Discriminator + AccountDeserialize>(
     rpc: &mut RouterRpcClient,
     program_id: Pubkey,
     len: usize,
-    enable_compression: bool,
 ) -> anyhow::Result<Vec<(Pubkey, T)>> {
     let config = RpcProgramAccountsConfig {
         filters: Some(vec![
@@ -393,7 +386,7 @@ async fn fetch_raydium_account<T: Discriminator + AccountDeserialize>(
     };
 
     let snapshot = rpc
-        .get_program_accounts_with_config(&program_id, config, enable_compression)
+        .get_program_accounts_with_config(&program_id, config)
         .await?;
 
     let result = snapshot
