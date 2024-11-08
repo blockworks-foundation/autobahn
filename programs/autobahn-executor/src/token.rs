@@ -119,7 +119,7 @@ pub fn transfer<'a>(
                 &[],
                 amount,
             )?;
-            let transfer_account_infos = [source.clone(), destination.clone(), program.clone()];
+            let transfer_account_infos = [source.clone(), destination.clone(), program.clone(), authority.clone()];
             if signer_seeds.is_empty() {
                 invoke(&transfer_ix, &transfer_account_infos)
             } else {
@@ -140,7 +140,7 @@ pub fn transfer<'a>(
                 amount,
                 mint_parsed.base.decimals,
             )?;
-            let transfer_account_infos = [source.clone(), destination.clone(), program.clone()];
+            let transfer_account_infos = [source.clone(), destination.clone(), mint.clone(), program.clone(), authority.clone()];
             if signer_seeds.is_empty() {
                 invoke(&transfer_ix, &transfer_account_infos)
             } else {
