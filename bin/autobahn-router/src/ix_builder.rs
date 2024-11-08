@@ -150,6 +150,7 @@ impl<T: SwapStepInstructionBuilder> SwapInstructionsBuilder for SwapInstructions
 
         for step in &swap_instructions {
             if auto_create_out || (step.out_mint == sol_mint && auto_wrap_sol) {
+                // wrapped SOL is always legacy token not 2022
                 let out_is_token_2022 = (step.out_mint != sol_mint)
                     && spl_token_2022::ID.eq(live_account_provider
                         .account(&step.out_mint)?

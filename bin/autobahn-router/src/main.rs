@@ -443,11 +443,9 @@ async fn main() -> anyhow::Result<()> {
     // collect all mints traded so their token program owner can be checked
     let mut mints = HashSet::new();
     for d in dexs.iter() {
-        for es in d.edges_per_pk.values() {
-            for e in es {
-                mints.insert(e.input_mint);
-                mints.insert(e.output_mint);
-            }
+        for e in d.edges_per_pk.values().flatten() {
+            mints.insert(e.input_mint);
+            mints.insert(e.output_mint);
         }
     }
 
