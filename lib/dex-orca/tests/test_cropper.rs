@@ -18,6 +18,11 @@ async fn test_dump_input_data_cropper() -> anyhow::Result<()> {
         // crooper is not yet on eclipse
         return Ok(());
     }
+
+    let disable_compressed = std::env::var::<String>("DISABLE_COMRPESSED_GPA".to_string())
+        .unwrap_or("false".to_string());
+    let disable_compressed: bool = disable_compressed.trim().parse().unwrap();
+
     let options = HashMap::from([
         (
             "program_id".to_string(),
@@ -27,31 +32,39 @@ async fn test_dump_input_data_cropper() -> anyhow::Result<()> {
     ]);
 
     if router_test_lib::config_should_dump_mainnet_data() {
-        cropper_step_1(&options).await?;
+        cropper_step_1(&options, !disable_compressed).await?;
     }
 
-    cropper_step_2(&options).await?;
+    cropper_step_2(&options, !disable_compressed).await?;
 
     Ok(())
 }
 
-async fn cropper_step_1(options: &HashMap<String, String>) -> anyhow::Result<()> {
+async fn cropper_step_1(
+    options: &HashMap<String, String>,
+    enable_compression: bool,
+) -> anyhow::Result<()> {
     let rpc_url = env::var("RPC_HTTP_URL")?;
 
     let (mut rpc_client, chain_data) = rpc::rpc_dumper_client(rpc_url, "cropper_dump.lz4");
 
-    let dex = dex_orca::OrcaDex::initialize(&mut rpc_client, options.clone()).await?;
+    let dex =
+        dex_orca::OrcaDex::initialize(&mut rpc_client, options.clone(), enable_compression).await?;
 
     generate_dex_rpc_dump::run_dump_mainnet_data(dex, rpc_client, chain_data).await?;
 
     Ok(())
 }
 
-async fn cropper_step_2(options: &HashMap<String, String>) -> anyhow::Result<()> {
+async fn cropper_step_2(
+    options: &HashMap<String, String>,
+    enable_compression: bool,
+) -> anyhow::Result<()> {
     // Replay
     let (mut rpc_client, chain_data) = rpc::rpc_replayer_client("cropper_dump.lz4");
 
-    let dex = dex_orca::OrcaDex::initialize(&mut rpc_client, options.clone()).await?;
+    let dex =
+        dex_orca::OrcaDex::initialize(&mut rpc_client, options.clone(), enable_compression).await?;
 
     generate_dex_rpc_dump::run_dump_swap_ix("cropper_swap.lz4", dex, chain_data).await?;
 

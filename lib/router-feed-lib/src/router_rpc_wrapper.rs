@@ -54,11 +54,9 @@ impl RouterRpcClientTrait for RouterRpcWrapper {
         &mut self,
         pubkey: &Pubkey,
         config: RpcProgramAccountsConfig,
+        compression_enabled: bool,
     ) -> anyhow::Result<Vec<AccountWrite>> {
-        let disable_compressed = std::env::var::<String>("DISABLE_COMRPESSED_GPA".to_string())
-            .unwrap_or("false".to_string());
-        let disable_compressed: bool = disable_compressed.trim().parse().unwrap();
-        if disable_compressed {
+        if !compression_enabled {
             Ok(
                 get_uncompressed_program_account_rpc(&self.rpc, &HashSet::from([*pubkey]), config)
                     .await?

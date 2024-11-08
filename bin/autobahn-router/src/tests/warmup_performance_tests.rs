@@ -24,9 +24,13 @@ mod tests {
 
         syscallstubs::deactivate_program_logs();
 
+        let disable_compressed = std::env::var::<String>("DISABLE_COMRPESSED_GPA".to_string())
+            .unwrap_or("false".to_string());
+        let disable_compressed: bool = disable_compressed.trim().parse().unwrap();
+
         let (mut rpc_client, chain_data) = rpc::rpc_replayer_client("all.lz4");
         let chain_data = Arc::new(ChainDataAccountProvider::new(chain_data)) as AccountProviderView;
-        let dex_sources = dex_test_utils::get_all_dex(&mut rpc_client).await?;
+        let dex_sources = dex_test_utils::get_all_dex(&mut rpc_client, !disable_compressed).await?;
         let mut dexs = vec![];
         for dex in dex_sources {
             dexs.push(

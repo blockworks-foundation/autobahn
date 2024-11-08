@@ -34,12 +34,18 @@ impl DexInterface for SaberDex {
     async fn initialize(
         rpc: &mut RouterRpcClient,
         _options: HashMap<String, String>,
+        enable_compression: bool,
     ) -> anyhow::Result<Arc<dyn DexInterface>>
     where
         Self: Sized,
     {
-        let pools =
-            fetch_saber_account::<SwapInfo>(rpc, stable_swap_client::id(), SwapInfo::LEN).await?;
+        let pools = fetch_saber_account::<SwapInfo>(
+            rpc,
+            stable_swap_client::id(),
+            SwapInfo::LEN,
+            enable_compression,
+        )
+        .await?;
 
         let edge_pairs = pools
             .iter()
@@ -213,6 +219,7 @@ async fn fetch_saber_account<T: Pack + IsInitialized>(
     rpc: &mut RouterRpcClient,
     program_id: Pubkey,
     len: usize,
+    enable_compression: bool,
 ) -> anyhow::Result<Vec<(Pubkey, T)>> {
     let config = RpcProgramAccountsConfig {
         filters: Some(vec![RpcFilterType::DataSize(len as u64)]),
@@ -225,7 +232,7 @@ async fn fetch_saber_account<T: Pack + IsInitialized>(
     };
 
     let snapshot = rpc
-        .get_program_accounts_with_config(&program_id, config)
+        .get_program_accounts_with_config(&program_id, config, enable_compression)
         .await?;
 
     let result = snapshot

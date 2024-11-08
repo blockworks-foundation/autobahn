@@ -167,6 +167,7 @@ pub trait DexInterface: Sync + Send {
     async fn initialize(
         rpc: &mut RouterRpcClient,
         options: HashMap<String, String>,
+        enable_compression: bool,
     ) -> anyhow::Result<Arc<dyn DexInterface>>
     where
         Self: Sized;

@@ -9,7 +9,6 @@ use solana_program::pubkey::Pubkey;
 use solana_sdk::clock::Clock;
 use solana_sdk::instruction::AccountMeta;
 use solana_sdk::sysvar::SysvarId;
-use std::str::FromStr;
 
 pub const INCLUDED_MAKERS_COUNT: usize = 2;
 

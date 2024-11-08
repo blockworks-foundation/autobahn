@@ -18,6 +18,7 @@ pub trait RouterRpcClientTrait: Sync + Send {
         &mut self,
         pubkey: &Pubkey,
         config: RpcProgramAccountsConfig,
+        compression_enabled: bool,
     ) -> anyhow::Result<Vec<AccountWrite>>;
 }
 
@@ -42,9 +43,10 @@ impl RouterRpcClientTrait for RouterRpcClient {
         &mut self,
         pubkey: &Pubkey,
         config: RpcProgramAccountsConfig,
+        compression_enabled: bool,
     ) -> anyhow::Result<Vec<AccountWrite>> {
         self.rpc
-            .get_program_accounts_with_config(pubkey, config)
+            .get_program_accounts_with_config(pubkey, config, compression_enabled)
             .await
     }
 }

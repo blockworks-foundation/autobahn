@@ -231,11 +231,12 @@ impl DexInterface for InvariantDex {
     async fn initialize(
         rpc: &mut RouterRpcClient,
         _options: HashMap<String, String>,
+        enable_compression: bool,
     ) -> anyhow::Result<Arc<dyn DexInterface>>
     where
         Self: Sized,
     {
-        let mut pools = fetch_invariant_accounts(rpc, crate::id()).await?;
+        let mut pools = fetch_invariant_accounts(rpc, crate::id(), enable_compression).await?;
 
         let reserves = pools
             .iter()
@@ -460,6 +461,7 @@ impl DexInterface for InvariantDex {
 async fn fetch_invariant_accounts(
     rpc: &mut RouterRpcClient,
     program_id: Pubkey,
+    compression_enabled: bool,
 ) -> anyhow::Result<Vec<(Pubkey, Pool)>> {
     let config = RpcProgramAccountsConfig {
         filters: Some(vec![RpcFilterType::DataSize(Pool::LEN as u64)]),
@@ -471,7 +473,7 @@ async fn fetch_invariant_accounts(
     };
 
     let snapshot = rpc
-        .get_program_accounts_with_config(&program_id, config)
+        .get_program_accounts_with_config(&program_id, config, compression_enabled)
         .await?;
 
     let result = snapshot

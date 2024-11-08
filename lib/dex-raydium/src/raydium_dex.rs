@@ -34,11 +34,12 @@ impl DexInterface for RaydiumDex {
     async fn initialize(
         rpc: &mut RouterRpcClient,
         _options: HashMap<String, String>,
+        enable_compression: bool,
     ) -> anyhow::Result<Arc<dyn DexInterface>>
     where
         Self: Sized,
     {
-        let pools = fetch_raydium_accounts(rpc, crate::id()).await?;
+        let pools = fetch_raydium_accounts(rpc, crate::id(), enable_compression).await?;
 
         info!("Number of raydium AMM: {:?}", pools.len());
 
@@ -284,6 +285,7 @@ impl DexInterface for RaydiumDex {
 async fn fetch_raydium_accounts(
     rpc: &mut RouterRpcClient,
     program_id: Pubkey,
+    enable_compression: bool,
 ) -> anyhow::Result<Vec<(Pubkey, AmmInfo)>> {
     let config = RpcProgramAccountsConfig {
         filters: Some(vec![RpcFilterType::DataSize(
@@ -298,7 +300,7 @@ async fn fetch_raydium_accounts(
     };
 
     let snapshot = rpc
-        .get_program_accounts_with_config(&program_id, config)
+        .get_program_accounts_with_config(&program_id, config, enable_compression)
         .await?;
 
     let result = snapshot

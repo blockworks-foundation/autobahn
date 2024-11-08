@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 pub async fn get_all_dex(
     mut rpc_client: &mut RouterRpcClient,
+    enable_compression: bool,
 ) -> anyhow::Result<Vec<Arc<dyn DexInterface>>> {
     let orca_config = HashMap::from([
         (
@@ -23,13 +24,26 @@ pub async fn get_all_dex(
     ]);
 
     let dexs = [
-        dex_orca::OrcaDex::initialize(&mut rpc_client, orca_config).await?,
-        dex_orca::OrcaDex::initialize(&mut rpc_client, cropper_config).await?,
-        dex_saber::SaberDex::initialize(&mut rpc_client, HashMap::new()).await?,
-        dex_raydium_cp::RaydiumCpDex::initialize(&mut rpc_client, HashMap::new()).await?,
-        dex_raydium::RaydiumDex::initialize(&mut rpc_client, HashMap::new()).await?,
-        dex_openbook_v2::OpenbookV2Dex::initialize(&mut rpc_client, HashMap::new()).await?,
-        dex_infinity::InfinityDex::initialize(&mut rpc_client, HashMap::new()).await?,
+        dex_orca::OrcaDex::initialize(&mut rpc_client, orca_config, enable_compression).await?,
+        dex_orca::OrcaDex::initialize(&mut rpc_client, cropper_config, enable_compression).await?,
+        dex_saber::SaberDex::initialize(&mut rpc_client, HashMap::new(), enable_compression)
+            .await?,
+        dex_raydium_cp::RaydiumCpDex::initialize(
+            &mut rpc_client,
+            HashMap::new(),
+            enable_compression,
+        )
+        .await?,
+        dex_raydium::RaydiumDex::initialize(&mut rpc_client, HashMap::new(), enable_compression)
+            .await?,
+        dex_openbook_v2::OpenbookV2Dex::initialize(
+            &mut rpc_client,
+            HashMap::new(),
+            enable_compression,
+        )
+        .await?,
+        dex_infinity::InfinityDex::initialize(&mut rpc_client, HashMap::new(), enable_compression)
+            .await?,
     ];
 
     Ok(dexs.into_iter().collect())

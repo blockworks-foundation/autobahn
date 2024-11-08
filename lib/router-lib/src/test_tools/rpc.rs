@@ -67,6 +67,7 @@ impl RouterRpcClientTrait for ReplayerRpcClient {
         &mut self,
         pubkey: &Pubkey,
         config: RpcProgramAccountsConfig,
+        _compression_enabled: bool,
     ) -> anyhow::Result<Vec<AccountWrite>> {
         let config_serialized = serde_json::to_string(&config)?;
         match self
@@ -121,11 +122,12 @@ impl RouterRpcClientTrait for DumpRpcClient {
         &mut self,
         pubkey: &Pubkey,
         config: RpcProgramAccountsConfig,
+        compression_enabled: bool,
     ) -> anyhow::Result<Vec<AccountWrite>> {
         let config_serialized = serde_json::to_string(&config)?;
         match self
             .rpc
-            .get_program_accounts_with_config(pubkey, config.clone())
+            .get_program_accounts_with_config(pubkey, config.clone(), compression_enabled)
             .await
         {
             Ok(r) => {
@@ -279,6 +281,7 @@ pub async fn load_subscriptions(
                             account_config: Default::default(),
                             with_context: Some(true),
                         },
+                        false,
                     )
                     .await?;
             }
@@ -295,6 +298,7 @@ pub async fn load_subscriptions(
                             account_config: Default::default(),
                             with_context: Some(true),
                         },
+                        false,
                     )
                     .await?;
             }
@@ -315,6 +319,7 @@ pub async fn load_subscriptions(
                             account_config: Default::default(),
                             with_context: Some(true),
                         },
+                        false,
                     )
                     .await?;
             }

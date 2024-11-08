@@ -24,7 +24,11 @@ mod tests {
         let rpc_url = env::var("RPC_HTTP_URL")?;
         let (mut rpc_client, _chain_data) = rpc::rpc_dumper_client(rpc_url, "all.lz4");
 
-        let dexs = dex_test_utils::get_all_dex(&mut rpc_client).await?;
+        let disable_compressed = std::env::var::<String>("DISABLE_COMRPESSED_GPA".to_string())
+            .unwrap_or("false".to_string());
+        let disable_compressed: bool = disable_compressed.trim().parse().unwrap();
+
+        let dexs = dex_test_utils::get_all_dex(&mut rpc_client, !disable_compressed).await?;
 
         for dex in &dexs {
             rpc::load_subscriptions(&mut rpc_client, dex.clone()).await?;

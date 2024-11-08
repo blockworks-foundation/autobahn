@@ -32,11 +32,12 @@ impl DexInterface for OpenbookV2Dex {
     async fn initialize(
         rpc: &mut RouterRpcClient,
         _options: HashMap<String, String>,
+        enable_compression: bool,
     ) -> anyhow::Result<Arc<dyn DexInterface>>
     where
         Self: Sized,
     {
-        let markets = fetch_openbook_v2_account(rpc, openbook_v2::id())
+        let markets = fetch_openbook_v2_account(rpc, openbook_v2::id(), enable_compression)
             .await?
             .into_iter()
             .filter(|x| x.1.open_orders_admin.is_none())
@@ -404,6 +405,7 @@ impl DexInterface for OpenbookV2Dex {
 async fn fetch_openbook_v2_account(
     rpc: &mut RouterRpcClient,
     program_id: Pubkey,
+    enable_compression: bool,
 ) -> anyhow::Result<Vec<(Pubkey, Market)>> {
     let config = RpcProgramAccountsConfig {
         filters: Some(vec![
@@ -422,7 +424,7 @@ async fn fetch_openbook_v2_account(
     };
 
     let snapshot = rpc
-        .get_program_accounts_with_config(&program_id, config) // todo use compression here
+        .get_program_accounts_with_config(&program_id, config, enable_compression) // todo use compression here
         .await?;
 
     let result = snapshot
