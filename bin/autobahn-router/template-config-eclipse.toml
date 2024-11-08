@@ -47,11 +47,11 @@ add_mango_tokens = false
 
 [routing]
 path_cache_validity_ms = 30000
-path_warming_mode = "ConfiguredMints"
-#path_warming_mode = "HotMints"
+path_warming_mode = "All"
 path_warming_amounts = [100, 1000, 10_000]
 path_warming_for_mints = [
-    "So11111111111111111111111111111111111111112",  # SOL
+    "So11111111111111111111111111111111111111112",  # ETH
+    "AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE",  # USDC
 ]
 path_warming_interval_secs = 5
 path_warming_max_accounts = [20, 30, 40, 64]
@@ -95,7 +95,8 @@ min_quote_out_to_in_amount_ratio = 0.65
 
 [hot_mints]
 always_hot_mints = [
-    "So11111111111111111111111111111111111111112",  # SOL
+    "So11111111111111111111111111111111111111112",  # ETH
+    "AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE",  # USDC
 ]
 keep_latest_count = 50
 
