@@ -280,7 +280,7 @@ impl HttpServer {
     ) -> Result<Json<Value>, AppError> {
         let route = route_provider.try_from(&input.quote_response)?;
 
-        Self::log_repriced_amount(live_account_provider, reprice_probability, &route);
+        Self::log_repriced_amount(live_account_provider.clone(), reprice_probability, &route);
 
         let swap_mode: SwapMode = SwapMode::from_str(&input.quote_response.swap_mode)
             .map_err(|_| anyhow::Error::msg("Invalid SwapMode"))?;
@@ -294,6 +294,7 @@ impl HttpServer {
             address_lookup_table_addresses,
             hash_provider,
             alt_provider,
+            live_account_provider,
             ix_builder,
             &route,
             input.user_public_key,
