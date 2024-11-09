@@ -76,6 +76,15 @@ Build router with feature `tokio-console` and `RUSTFLAGS="--cfg tokio_unstable"`
 
 And use the `tokio-console` crate to display running tasks
 
+## Trigger automatic build and deployment to fly.io
+
+```bash
+git tag production/router-202409231509
+git tag production/indexer-202409231509
+git tag production/comparer-202409231509
+# push tag(s)
+```
+
 ## License
 
 Autobahn is published under GNU Affero General Public License v3.0.
