@@ -4,7 +4,7 @@ use crate::{size, MAX_VIRTUAL_CROSS};
 use anchor_lang::prelude::*;
 
 use crate::utils::{TrackableError, TrackableResult};
-use crate::{err, function, location, trace};
+use crate::{err, function, location};
 
 pub const TICK_LIMIT: i32 = 44_364; // If you change it update length of array as well!
 pub const TICK_SEARCH_RANGE: i32 = 256;
@@ -17,23 +17,34 @@ const TICKMAP_RANGE: usize = (TICK_CROSSES_PER_IX + TICKS_BACK_COUNT + MAX_VIRTU
     * TICK_SEARCH_RANGE as usize;
 const TICKMAP_SLICE_SIZE: usize = TICKMAP_RANGE / 8 + 2;
 
-pub fn tick_to_position(tick: i32, tick_spacing: u16) -> (usize, u8) {
-    assert_eq!(
-        (tick % tick_spacing as i32),
-        0,
-        "tick not divisible by spacing"
-    );
+pub fn tick_to_position(tick: i32, tick_spacing: u16) -> TrackableResult<(usize, u8)> {
+    if (tick
+        .checked_rem_euclid(tick_spacing as i32)
+        .ok_or(err!("tick spacing is zero"))?)
+        != 0
+    {
+        return Err(err!("tick not divisible by spacing"));
+    }
 
     let bitmap_index = tick
-        .checked_div(tick_spacing.try_into().unwrap())
-        .unwrap()
+        .checked_div(
+            tick_spacing
+                .try_into()
+                .map_err(|_| err!("failed to convert tick spacing"))?,
+        )
+        .ok_or(err!("sub underflow"))?
         .checked_add(TICK_LIMIT)
-        .unwrap();
+        .ok_or(err!("add overflow"))?;
 
-    let byte: usize = (bitmap_index.checked_div(8).unwrap()).try_into().unwrap();
-    let bit: u8 = (bitmap_index % 8).abs().try_into().unwrap();
+    let byte: usize = (bitmap_index.checked_div(8).unwrap())
+        .try_into()
+        .map_err(|_| err!("failed to convert bitmap byte"))?;
+    let bit: u8 = (bitmap_index % 8)
+        .abs()
+        .try_into()
+        .map_err(|_| (err!("failed to convert bitmap bit")))?;
 
-    (byte, bit)
+    Ok((byte, bit))
 }
 
 // tick_spacing - spacing already scaled by tick_spacing
@@ -86,22 +97,24 @@ impl Debug for Tickmap {
 size!(Tickmap);
 
 impl Tickmap {
-    pub fn get(&self, tick: i32, tick_spacing: u16) -> bool {
-        let (byte, bit) = tick_to_position(tick, tick_spacing);
+    pub fn get(&self, tick: i32, tick_spacing: u16) -> TrackableResult<bool> {
+        let (byte, bit) = tick_to_position(tick, tick_spacing)?;
         let value = (self.bitmap[byte] >> bit) % 2;
 
-        (value) == 1
+        Ok((value) == 1)
     }
 
-    pub fn flip(&mut self, value: bool, tick: i32, tick_spacing: u16) {
+    pub fn flip(&mut self, value: bool, tick: i32, tick_spacing: u16) -> TrackableResult<()> {
         assert!(
-            self.get(tick, tick_spacing) != value,
+            self.get(tick, tick_spacing)? != value,
             "tick initialize tick again"
         );
 
-        let (byte, bit) = tick_to_position(tick, tick_spacing);
+        let (byte, bit) = tick_to_position(tick, tick_spacing)?;
 
         self.bitmap[byte] ^= 1 << bit;
+
+        Ok(())
     }
 }
 pub struct TickmapSlice {
@@ -118,15 +131,19 @@ impl Default for TickmapSlice {
 }
 
 impl TickmapSlice {
-    pub fn calculate_search_range_offset(init_tick: i32, spacing: u16, up: bool) -> i32 {
+    pub fn calculate_search_range_offset(
+        init_tick: i32,
+        spacing: u16,
+        up: bool,
+    ) -> TrackableResult<i32> {
         let search_limit = get_search_limit(init_tick, spacing, up);
-        let position = tick_to_position(search_limit, spacing).0 as i32;
+        let position = tick_to_position(search_limit, spacing)?.0 as i32;
 
-        if up {
+        Ok(if up {
             position - TICKMAP_SLICE_SIZE as i32 + 1
         } else {
             position
-        }
+        })
     }
 
     pub fn from_slice(
@@ -201,17 +218,17 @@ impl std::fmt::Debug for TickmapView {
 }
 
 impl TickmapView {
-    pub fn next_initialized(&self, tick: i32, tick_spacing: u16) -> Option<i32> {
+    pub fn next_initialized(&self, tick: i32, tick_spacing: u16) -> TrackableResult<Option<i32>> {
         let limit = get_search_limit(tick, tick_spacing, true);
 
         // add 1 to not check current tick
         let (mut byte, mut bit) =
-            tick_to_position(tick.checked_add(tick_spacing as i32).unwrap(), tick_spacing);
-        let (limiting_byte, limiting_bit) = tick_to_position(limit, tick_spacing);
+            tick_to_position(tick.checked_add(tick_spacing as i32).unwrap(), tick_spacing)?;
+        let (limiting_byte, limiting_bit) = tick_to_position(limit, tick_spacing)?;
 
         while byte < limiting_byte || (byte == limiting_byte && bit <= limiting_bit) {
             // ignore some bits on first loop
-            let (limiting_byte, limiting_bit) = tick_to_position(limit, tick_spacing);
+            let (limiting_byte, limiting_bit) = tick_to_position(limit, tick_spacing)?;
             let mut shifted = self.bitmap[byte] >> bit;
 
             // go through all bits in byte until it is zero
@@ -221,44 +238,46 @@ impl TickmapView {
                     bit = bit.checked_add(1).unwrap();
                 }
 
-                return if byte < limiting_byte || (byte == limiting_byte && bit <= limiting_bit) {
-                    let index: i32 = byte
-                        .checked_mul(8)
-                        .unwrap()
-                        .checked_add(bit.into())
-                        .unwrap()
-                        .try_into()
-                        .unwrap();
-                    Some(
-                        index
-                            .checked_sub(TICK_LIMIT)
+                return Ok(
+                    if byte < limiting_byte || (byte == limiting_byte && bit <= limiting_bit) {
+                        let index: i32 = byte
+                            .checked_mul(8)
                             .unwrap()
-                            .checked_mul(tick_spacing.try_into().unwrap())
-                            .unwrap(),
-                    )
-                } else {
-                    None
-                };
+                            .checked_add(bit.into())
+                            .unwrap()
+                            .try_into()
+                            .unwrap();
+                        Some(
+                            index
+                                .checked_sub(TICK_LIMIT)
+                                .unwrap()
+                                .checked_mul(tick_spacing.try_into().unwrap())
+                                .unwrap(),
+                        )
+                    } else {
+                        None
+                    },
+                );
             }
 
             // go to the text byte
             if let Some(value) = byte.checked_add(1) {
                 byte = value;
             } else {
-                return None;
+                return Ok(None);
             }
             bit = 0;
         }
 
-        None
+        Ok(None)
     }
 
     // tick_spacing - spacing already scaled by tick_spacing
-    pub fn prev_initialized(&self, tick: i32, tick_spacing: u16) -> Option<i32> {
+    pub fn prev_initialized(&self, tick: i32, tick_spacing: u16) -> TrackableResult<Option<i32>> {
         // don't subtract 1 to check the current tick
         let limit = get_search_limit(tick, tick_spacing, false); // limit scaled by tick_spacing
-        let (mut byte, mut bit) = tick_to_position(tick as i32, tick_spacing);
-        let (limiting_byte, limiting_bit) = tick_to_position(limit, tick_spacing);
+        let (mut byte, mut bit) = tick_to_position(tick as i32, tick_spacing)?;
+        let (limiting_byte, limiting_bit) = tick_to_position(limit, tick_spacing)?;
 
         while byte > limiting_byte || (byte == limiting_byte && bit >= limiting_bit) {
             // always safe due to limitated domain of bit variable
@@ -274,56 +293,60 @@ impl TickmapView {
                 }
 
                 // return first initalized tick if limiit is not exceeded, otherswise return None
-                return if byte > limiting_byte || (byte == limiting_byte && bit >= limiting_bit) {
-                    // no possibility to overflow
-                    let index: i32 = byte
-                        .checked_mul(8)
-                        .unwrap()
-                        .checked_add(bit.into())
-                        .unwrap()
-                        .try_into()
-                        .unwrap();
-
-                    Some(
-                        index
-                            .checked_sub(TICK_LIMIT)
+                return Ok(
+                    if byte > limiting_byte || (byte == limiting_byte && bit >= limiting_bit) {
+                        // no possibility to overflow
+                        let index: i32 = byte
+                            .checked_mul(8)
                             .unwrap()
-                            .checked_mul(tick_spacing.try_into().unwrap())
-                            .unwrap(),
-                    )
-                } else {
-                    None
-                };
+                            .checked_add(bit.into())
+                            .unwrap()
+                            .try_into()
+                            .unwrap();
+
+                        Some(
+                            index
+                                .checked_sub(TICK_LIMIT)
+                                .unwrap()
+                                .checked_mul(tick_spacing.try_into().unwrap())
+                                .unwrap(),
+                        )
+                    } else {
+                        None
+                    },
+                );
             }
 
             // go to the next byte
             if let Some(value) = byte.checked_sub(1) {
                 byte = value;
             } else {
-                return None;
+                return Ok(None);
             }
             bit = 7;
         }
 
-        None
+        Ok(None)
     }
 
-    pub fn get(&self, tick: i32, tick_spacing: u16) -> bool {
-        let (byte, bit) = tick_to_position(tick, tick_spacing);
+    pub fn get(&self, tick: i32, tick_spacing: u16) -> TrackableResult<bool> {
+        let (byte, bit) = tick_to_position(tick, tick_spacing)?;
         let value = (self.bitmap[byte] >> bit) % 2;
 
-        (value) == 1
+        Ok((value) == 1)
     }
 
-    pub fn flip(&mut self, value: bool, tick: i32, tick_spacing: u16) {
+    pub fn flip(&mut self, value: bool, tick: i32, tick_spacing: u16) -> TrackableResult<()> {
         assert!(
-            self.get(tick, tick_spacing) != value,
+            self.get(tick, tick_spacing)? != value,
             "tick initialize tick again"
         );
 
-        let (byte, bit) = tick_to_position(tick, tick_spacing);
+        let (byte, bit) = tick_to_position(tick, tick_spacing)?;
 
         self.bitmap[byte] ^= 1 << bit;
+
+        Ok(())
     }
 
     pub fn from_slice(
@@ -356,9 +379,11 @@ mod tests {
                 println!("max_index = {}", max_index);
                 println!("min_index = {}", min_index);
                 let offset_high =
-                    TickmapSlice::calculate_search_range_offset(max_index, spacing as u16, true);
+                    TickmapSlice::calculate_search_range_offset(max_index, spacing as u16, true)
+                        .unwrap();
                 let offset_low =
-                    TickmapSlice::calculate_search_range_offset(min_index, spacing as u16, false);
+                    TickmapSlice::calculate_search_range_offset(min_index, spacing as u16, false)
+                        .unwrap();
 
                 let mut map_low = TickmapView {
                     bitmap: TickmapSlice {
@@ -372,13 +397,17 @@ mod tests {
                         ..Default::default()
                     },
                 };
-                map_low.flip(true, min_index, spacing as u16);
-                map_high.flip(true, max_index, spacing as u16);
+                map_low.flip(true, min_index, spacing as u16).unwrap();
+                map_high.flip(true, max_index, spacing as u16).unwrap();
 
                 let tick_edge_diff = TICK_SEARCH_RANGE / spacing * spacing;
 
-                let prev = map_low.prev_initialized(min_index + tick_edge_diff, spacing as u16);
-                let next = map_high.next_initialized(max_index - tick_edge_diff, spacing as u16);
+                let prev = map_low
+                    .prev_initialized(min_index + tick_edge_diff, spacing as u16)
+                    .unwrap();
+                let next = map_high
+                    .next_initialized(max_index - tick_edge_diff, spacing as u16)
+                    .unwrap();
 
                 if prev.is_some() {
                     println!("found prev = {}", prev.unwrap());
@@ -399,9 +428,11 @@ mod tests {
             let tick_edge_diff = TICK_SEARCH_RANGE / spacing * spacing;
 
             let offset_high =
-                TickmapSlice::calculate_search_range_offset(max_index, spacing as u16, true);
+                TickmapSlice::calculate_search_range_offset(max_index, spacing as u16, true)
+                    .unwrap();
             let offset_low =
-                TickmapSlice::calculate_search_range_offset(min_index, spacing as u16, false);
+                TickmapSlice::calculate_search_range_offset(min_index, spacing as u16, false)
+                    .unwrap();
             let map_low = TickmapView {
                 bitmap: TickmapSlice {
                     offset: offset_low,
@@ -415,8 +446,12 @@ mod tests {
                 },
             };
 
-            let prev = map_low.prev_initialized(min_index + tick_edge_diff, spacing as u16);
-            let next = map_high.next_initialized(max_index - tick_edge_diff, spacing as u16);
+            let prev = map_low
+                .prev_initialized(min_index + tick_edge_diff, spacing as u16)
+                .unwrap();
+            let next = map_high
+                .next_initialized(max_index - tick_edge_diff, spacing as u16)
+                .unwrap();
 
             if prev.is_some() {
                 println!("found prev = {}", prev.unwrap());
@@ -437,10 +472,10 @@ mod tests {
             let low_tick = low_byte * 8 + low_bit - TICK_LIMIT;
 
             let high_tick = low_tick + TICKMAP_RANGE as i32;
-            let (high_byte, _high_bit) = tick_to_position(high_tick, spacing);
+            let (high_byte, _high_bit) = tick_to_position(high_tick, spacing).unwrap();
 
-            tickmap.flip(true, low_tick, spacing);
-            tickmap.flip(true, high_tick, spacing);
+            tickmap.flip(true, low_tick, spacing).unwrap();
+            tickmap.flip(true, high_tick, spacing).unwrap();
             let tickmap_x_to_y =
                 TickmapSlice::from_slice(&tickmap.bitmap, low_tick, spacing, true).unwrap();
             let tickmap_y_to_x =
@@ -470,10 +505,10 @@ mod tests {
             let low_tick = low_byte * 8 + low_bit - TICK_LIMIT;
 
             let high_tick = low_tick + TICKMAP_RANGE as i32;
-            let (high_byte, _high_bit) = tick_to_position(high_tick, spacing);
+            let (high_byte, _high_bit) = tick_to_position(high_tick, spacing).unwrap();
 
-            tickmap.flip(true, low_tick, spacing);
-            tickmap.flip(true, high_tick, spacing);
+            tickmap.flip(true, low_tick, spacing).unwrap();
+            tickmap.flip(true, high_tick, spacing).unwrap();
             let tickmap_x_to_y =
                 TickmapSlice::from_slice(&tickmap.bitmap, low_tick, spacing, true).unwrap();
             let tickmap_y_to_x =
@@ -503,10 +538,10 @@ mod tests {
             let high_tick = high_byte * 8 + high_bit - TICK_LIMIT;
 
             let low_tick = high_tick - TICKMAP_RANGE as i32;
-            let (low_byte, _low_bit) = tick_to_position(low_tick, spacing);
+            let (low_byte, _low_bit) = tick_to_position(low_tick, spacing).unwrap();
 
-            tickmap.flip(true, low_tick, spacing);
-            tickmap.flip(true, high_tick, spacing);
+            tickmap.flip(true, low_tick, spacing).unwrap();
+            tickmap.flip(true, high_tick, spacing).unwrap();
             let tickmap_x_to_y =
                 TickmapSlice::from_slice(&tickmap.bitmap, high_tick, spacing, true).unwrap();
             let tickmap_y_to_x =
@@ -536,10 +571,10 @@ mod tests {
             let high_tick = high_byte * 8 + high_bit - TICK_LIMIT;
 
             let low_tick = high_tick - TICKMAP_RANGE as i32;
-            let (low_byte, _low_bit) = tick_to_position(low_tick, spacing);
+            let (low_byte, _low_bit) = tick_to_position(low_tick, spacing).unwrap();
 
-            tickmap.flip(true, low_tick, spacing);
-            tickmap.flip(true, high_tick, spacing);
+            tickmap.flip(true, low_tick, spacing).unwrap();
+            tickmap.flip(true, high_tick, spacing).unwrap();
             let tickmap_x_to_y =
                 TickmapSlice::from_slice(&tickmap.bitmap, high_tick, spacing, true).unwrap();
             let tickmap_y_to_x =
@@ -577,10 +612,10 @@ mod tests {
             let low_tick = low_byte * 8 + low_bit - TICK_LIMIT;
 
             let high_tick = low_tick + TICKMAP_RANGE as i32;
-            let (high_byte, _high_bit) = tick_to_position(high_tick, spacing);
+            let (high_byte, _high_bit) = tick_to_position(high_tick, spacing).unwrap();
 
-            tickmap.flip(true, low_tick, spacing);
-            tickmap.flip(true, high_tick, spacing);
+            tickmap.flip(true, low_tick, spacing).unwrap();
+            tickmap.flip(true, high_tick, spacing).unwrap();
             let tickmap_x_to_y = TickmapSlice::from_slice(
                 &tickmap.bitmap,
                 low_tick + range_offset_with_tick_back,
@@ -605,10 +640,10 @@ mod tests {
             let low_tick = low_byte * 8 + low_bit - TICK_LIMIT;
 
             let high_tick = low_tick + TICKMAP_RANGE as i32;
-            let (high_byte, _high_bit) = tick_to_position(high_tick, spacing);
+            let (high_byte, _high_bit) = tick_to_position(high_tick, spacing).unwrap();
 
-            tickmap.flip(true, low_tick, spacing);
-            tickmap.flip(true, high_tick, spacing);
+            tickmap.flip(true, low_tick, spacing).unwrap();
+            tickmap.flip(true, high_tick, spacing).unwrap();
             let tickmap_x_to_y = TickmapSlice::from_slice(
                 &tickmap.bitmap,
                 low_tick + range_offset_with_tick_back,
@@ -633,10 +668,10 @@ mod tests {
             let high_tick = high_byte * 8 + high_bit - TICK_LIMIT;
 
             let low_tick = high_tick - TICKMAP_RANGE as i32;
-            let (low_byte, _low_bit) = tick_to_position(low_tick, spacing);
+            let (low_byte, _low_bit) = tick_to_position(low_tick, spacing).unwrap();
 
-            tickmap.flip(true, low_tick, spacing);
-            tickmap.flip(true, high_tick, spacing);
+            tickmap.flip(true, low_tick, spacing).unwrap();
+            tickmap.flip(true, high_tick, spacing).unwrap();
             let tickmap_y_to_x = TickmapSlice::from_slice(
                 &tickmap.bitmap,
                 high_tick - range_offset_with_tick_back,
@@ -661,10 +696,10 @@ mod tests {
             let high_tick = high_byte * 8 + high_bit - TICK_LIMIT;
 
             let low_tick = high_tick - TICKMAP_RANGE as i32;
-            let (low_byte, _low_bit) = tick_to_position(low_tick, spacing);
+            let (low_byte, _low_bit) = tick_to_position(low_tick, spacing).unwrap();
 
-            tickmap.flip(true, low_tick, spacing);
-            tickmap.flip(true, high_tick, spacing);
+            tickmap.flip(true, low_tick, spacing).unwrap();
+            tickmap.flip(true, high_tick, spacing).unwrap();
             let tickmap_y_to_x = TickmapSlice::from_slice(
                 &tickmap.bitmap,
                 high_tick - range_offset_with_tick_back,

@@ -97,13 +97,13 @@ pub fn get_closer_limit(
     current_tick: i32, // tick already scaled by tick_spacing
     tick_spacing: u16,
     tickmap: &TickmapView,
-) -> Result<(Price, Option<(i32, bool)>)> {
+) -> TrackableResult<(Price, Option<(i32, bool)>)> {
     // find initalized tick (None also for virtual tick limiated by search scope)
     let closes_tick_index = if x_to_y {
         tickmap.prev_initialized(current_tick, tick_spacing)
     } else {
         tickmap.next_initialized(current_tick, tick_spacing)
-    };
+    }?;
 
     match closes_tick_index {
         Some(index) => {
@@ -121,7 +121,9 @@ pub fn get_closer_limit(
             let index = get_search_limit(current_tick, tick_spacing, !x_to_y);
             let price = calculate_price_sqrt(index);
 
-            require!(current_tick != index, InvariantErrorCode::LimitReached);
+            if current_tick == index {
+                return Err(err!("InvariantErrorCode::LimitReached"));
+            }
 
             // trunk-ignore(clippy/if_same_then_else)
             if x_to_y && price > sqrt_price_limit {
