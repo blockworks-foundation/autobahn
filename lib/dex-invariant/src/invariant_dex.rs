@@ -11,9 +11,11 @@ use anchor_spl::{
 use anyhow::{Context, Ok};
 use async_trait::async_trait;
 use invariant_types::{
-    math::{calculate_price_sqrt, get_max_tick, get_min_tick}, structs::{
+    math::{calculate_price_sqrt, get_max_tick, get_min_tick},
+    structs::{
         Pool, Tick, Tickmap, TickmapView, TICK_CROSSES_PER_IX, TICK_LIMIT, TICK_SEARCH_RANGE,
-    }, ANCHOR_DISCRIMINATOR_SIZE, MAX_VIRTUAL_CROSS, TICK_SEED
+    },
+    ANCHOR_DISCRIMINATOR_SIZE, MAX_VIRTUAL_CROSS, TICK_SEED,
 };
 use router_feed_lib::router_rpc_client::{RouterRpcClient, RouterRpcClientTrait};
 use router_lib::dex::{
@@ -36,7 +38,8 @@ use crate::{
 pub struct InvariantDex {
     pub edges: HashMap<Pubkey, Vec<Arc<dyn DexEdgeIdentifier>>>,
 }
-pub const TICK_SUBSCRIPTION_RANGE: i32 = (TICK_CROSSES_PER_IX as i32 + MAX_VIRTUAL_CROSS as i32 + 2) * TICK_SEARCH_RANGE;
+pub const TICK_SUBSCRIPTION_RANGE: i32 =
+    (TICK_CROSSES_PER_IX as i32 + MAX_VIRTUAL_CROSS as i32 + 2) * TICK_SEARCH_RANGE;
 
 #[derive(Debug)]
 pub enum PriceDirection {
@@ -294,16 +297,20 @@ impl DexInterface for InvariantDex {
                 map.insert(*pool_pk, entry.clone());
                 map.insert(*tickmap_pk, entry.clone());
 
-                let min_tick = get_min_tick(pool.tick_spacing)?;
-                let max_tick = get_max_tick(pool.tick_spacing)?;
+                let mut min_tick = get_min_tick(pool.tick_spacing)?;
+                let mut max_tick = get_max_tick(pool.tick_spacing)?;
+                min_tick += min_tick % (pool.tick_spacing as i32);
+                max_tick -= max_tick % (pool.tick_spacing as i32);
 
-                let tick_range_max =
-                    max_tick.min(pool.current_tick_index + TICK_SUBSCRIPTION_RANGE);
+                let tick_range_max = max_tick.min(
+                    pool.current_tick_index + TICK_SUBSCRIPTION_RANGE * pool.tick_spacing as i32,
+                );
 
-                let tick_range_min =
-                    min_tick.max(pool.current_tick_index - TICK_SUBSCRIPTION_RANGE);
+                let tick_range_min = min_tick.max(
+                    pool.current_tick_index - TICK_SUBSCRIPTION_RANGE * pool.tick_spacing as i32,
+                );
 
-                let indexes = tick_range_min..=tick_range_max;
+                let indexes = (tick_range_min..=tick_range_max).step_by(pool.tick_spacing as usize);
 
                 for tick in indexes {
                     map.insert(Self::tick_index_to_address(*pool_pk, tick), entry.clone());
