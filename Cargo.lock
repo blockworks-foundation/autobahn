@@ -273,7 +273,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c4fd6e43b2ca6220d2ef1641539e678bfc31b6cc393cf892b373b5997b6a39a"
 dependencies = [
  "anchor-lang",
- "mpl-token-metadata",
+ "mpl-token-metadata 3.2.3",
  "solana-program",
  "spl-associated-token-account 2.3.0",
  "spl-token 4.0.0",
@@ -2110,6 +2110,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "dex-gobbler"
+version = "0.0.1"
+dependencies = [
+ "anchor-client",
+ "anchor-lang",
+ "anchor-spl",
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "itertools 0.10.5",
+ "mango-feeds-connector",
+ "raydium-cp-swap 0.1.143",
+ "router-feed-lib",
+ "router-lib",
+ "router-test-lib",
+ "serde",
+ "serde_derive",
+ "sha2 0.10.8",
+ "solana-account-decoder",
+ "solana-client",
+ "solana-logger",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-associated-token-account 1.1.3",
+ "spl-memo 3.0.1",
+ "spl-token 3.5.0",
+ "spl-token-2022 0.9.0",
+ "tracing",
+]
+
+[[package]]
 name = "dex-infinity"
 version = "0.0.1"
 dependencies = [
@@ -2282,7 +2314,7 @@ dependencies = [
  "chrono",
  "itertools 0.10.5",
  "mango-feeds-connector",
- "raydium-cp-swap",
+ "raydium-cp-swap 0.1.0",
  "router-feed-lib",
  "router-lib",
  "router-test-lib",
@@ -4327,6 +4359,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mpl-token-metadata"
+version = "4.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "caf0f61b553e424a6234af1268456972ee66c2222e1da89079242251fa7479e5"
+dependencies = [
+ "borsh 0.10.3",
+ "num-derive 0.3.3",
+ "num-traits",
+ "solana-program",
+ "thiserror",
+]
+
+[[package]]
 name = "multer"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4530,9 +4575,9 @@ dependencies = [
 
 [[package]]
 name = "num-traits"
-version = "0.2.18"
+version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da0df0e5185db44f69b44f26786fe401b6c293d1907744beaa7fa62b2e5a517a"
+checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg 1.2.0",
 ]
@@ -5753,6 +5798,26 @@ dependencies = [
  "spl-math",
  "spl-memo 4.0.0",
  "spl-token 4.0.0",
+ "uint",
+]
+
+[[package]]
+name = "raydium-cp-swap"
+version = "0.1.143"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff344ce2f9710e7479656dbea9f3a2c6e8213d581483342e4bbbb2d9fd9de920"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "arrayref",
+ "bytemuck",
+ "mpl-token-metadata 4.1.2",
+ "num-traits",
+ "solana-security-txt",
+ "spl-math",
+ "spl-memo 4.0.0",
+ "spl-token 4.0.0",
+ "spl-token-2022 0.9.0",
  "uint",
 ]
 
