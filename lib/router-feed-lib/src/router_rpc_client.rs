@@ -7,7 +7,7 @@ use solana_sdk::pubkey::Pubkey;
 
 #[async_trait::async_trait]
 pub trait RouterRpcClientTrait: Sync + Send {
-    async fn get_account(&mut self, pubkey: &Pubkey) -> anyhow::Result<Account>;
+    async fn get_account(&mut self, pubkey: &Pubkey) -> anyhow::Result<Option<Account>>;
 
     async fn get_multiple_accounts(
         &mut self,
@@ -27,7 +27,7 @@ pub struct RouterRpcClient {
 
 #[async_trait::async_trait]
 impl RouterRpcClientTrait for RouterRpcClient {
-    async fn get_account(&mut self, pubkey: &Pubkey) -> anyhow::Result<Account> {
+    async fn get_account(&mut self, pubkey: &Pubkey) -> anyhow::Result<Option<Account>> {
         self.rpc.get_account(pubkey).await
     }
 

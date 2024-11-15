@@ -21,7 +21,7 @@ pub struct RouterRpcWrapper {
 
 #[async_trait]
 impl RouterRpcClientTrait for RouterRpcWrapper {
-    async fn get_account(&mut self, pubkey: &Pubkey) -> anyhow::Result<Account> {
+    async fn get_account(&mut self, pubkey: &Pubkey) -> anyhow::Result<Option<Account>> {
         let response = self
             .rpc
             .get_account_with_config(
@@ -35,10 +35,7 @@ impl RouterRpcClientTrait for RouterRpcWrapper {
             )
             .await?;
 
-        match response.value {
-            None => Err(anyhow::format_err!("missing account")),
-            Some(x) => Ok(x),
-        }
+        Ok(response.value)
     }
 
     async fn get_multiple_accounts(

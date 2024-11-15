@@ -22,6 +22,7 @@ use std::time::Duration;
 struct RpcDump {
     pub cache: HashMap<Pubkey, Option<Account>>,
     pub cache_gpa: HashMap<(Pubkey, String), Option<Vec<AccountWrite>>>,
+    pub missing_accounts: HashSet<Pubkey>,
 }
 
 pub struct DumpRpcClient {
@@ -37,9 +38,12 @@ pub struct ReplayerRpcClient {
 
 #[async_trait::async_trait]
 impl RouterRpcClientTrait for ReplayerRpcClient {
-    async fn get_account(&mut self, pubkey: &Pubkey) -> anyhow::Result<Account> {
+    async fn get_account(&mut self, pubkey: &Pubkey) -> anyhow::Result<Option<Account>> {
+        if self.dump.missing_accounts.contains(pubkey) {
+            return Ok(None);
+        }
         match self.dump.cache.get(pubkey).unwrap() {
-            Some(x) => Ok(x.clone()),
+            Some(x) => Ok(Some(x.clone())),
             None => anyhow::bail!("Invalid account"),
         }
     }
@@ -83,11 +87,31 @@ impl RouterRpcClientTrait for ReplayerRpcClient {
 
 #[async_trait::async_trait]
 impl RouterRpcClientTrait for DumpRpcClient {
-    async fn get_account(&mut self, pubkey: &Pubkey) -> anyhow::Result<Account> {
+    async fn get_account(&mut self, pubkey: &Pubkey) -> anyhow::Result<Option<Account>> {
         match self.rpc.get_account(pubkey).await {
             Ok(r) => {
-                insert_into_arc_chain_data(&self.chain_data, *pubkey, r.clone());
-                self.dump.cache.insert(*pubkey, Some(r.clone()));
+                match &r {
+                    Some(acc) => {
+                        insert_into_arc_chain_data(&self.chain_data, *pubkey, acc.clone());
+                        self.dump.cache.insert(*pubkey, Some(acc.clone()));
+                    }
+                    None => {
+                        self.dump.cache.insert(*pubkey, None);
+                        self.dump.missing_accounts.insert(*pubkey);
+                        // add empty account in chain data
+                        insert_into_arc_chain_data(
+                            &self.chain_data,
+                            *pubkey,
+                            Account {
+                                lamports: 0,
+                                data: vec![],
+                                owner: Pubkey::default(),
+                                executable: false,
+                                rent_epoch: 0,
+                            },
+                        );
+                    }
+                }
                 Ok(r)
             }
             Err(e) => {
@@ -165,6 +189,7 @@ pub fn rpc_dumper_client(url: String, out_path: &str) -> (RouterRpcClient, Chain
             dump: RpcDump {
                 cache: Default::default(),
                 cache_gpa: Default::default(),
+                missing_accounts: Default::default(),
             },
             chain_data: chain_data.clone(),
             rpc: RouterRpcClient {

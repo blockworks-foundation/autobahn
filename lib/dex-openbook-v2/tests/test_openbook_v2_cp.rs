@@ -2,12 +2,14 @@ use std::collections::HashMap;
 use std::env;
 
 use dex_openbook_v2::OpenbookV2Edge;
+use router_feed_lib::utils::tracing_subscriber_init;
 use router_lib::dex::DexInterface;
 use router_lib::test_tools::{generate_dex_rpc_dump, rpc};
 use solana_program_test::tokio;
 
 #[tokio::test]
 async fn test_dump_input_data_openbook_v2() -> anyhow::Result<()> {
+    tracing_subscriber_init();
     let options = HashMap::from([]);
 
     if router_test_lib::config_should_dump_mainnet_data() {

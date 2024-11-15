@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::env;
 
+use router_feed_lib::utils::tracing_subscriber_init;
 use solana_program_test::tokio;
 
 use router_lib::dex::DexInterface;
@@ -8,6 +9,7 @@ use router_lib::test_tools::{generate_dex_rpc_dump, rpc};
 
 #[tokio::test]
 async fn test_dump_input_data_orca() -> anyhow::Result<()> {
+    tracing_subscriber_init();
     let options = HashMap::from([
         ("program_id".to_string(), whirlpools_client::ID.to_string()),
         ("program_name".to_string(), "Orca".to_string()),
