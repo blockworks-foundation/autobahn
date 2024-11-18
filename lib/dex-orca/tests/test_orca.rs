@@ -12,13 +12,8 @@ async fn test_dump_input_data_orca() -> anyhow::Result<()> {
         ("program_id".to_string(), whirlpools_client::ID.to_string()),
         ("program_name".to_string(), "Orca".to_string()),
     ]);
-
-    let disable_compressed = std::env::var::<String>("DISABLE_COMRPESSED_GPA".to_string())
-        .unwrap_or("false".to_string());
-    let disable_compressed: bool = disable_compressed.trim().parse().unwrap();
-
     if router_test_lib::config_should_dump_mainnet_data() {
-        orca_step_1(&options, !disable_compressed).await?;
+        orca_step_1(&options).await?;
     }
 
     orca_step_2(&options).await?;
@@ -26,13 +21,9 @@ async fn test_dump_input_data_orca() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn orca_step_1(
-    options: &HashMap<String, String>,
-    enable_compression: bool,
-) -> anyhow::Result<()> {
+async fn orca_step_1(options: &HashMap<String, String>) -> anyhow::Result<()> {
     let rpc_url = env::var("RPC_HTTP_URL")?;
-    let (mut rpc_client, chain_data) =
-        rpc::rpc_dumper_client(rpc_url, "orca_dump.lz4", enable_compression);
+    let (mut rpc_client, chain_data) = rpc::rpc_dumper_client(rpc_url, "orca_dump.lz4");
 
     let dex = dex_orca::OrcaDex::initialize(&mut rpc_client, options.clone()).await?;
 

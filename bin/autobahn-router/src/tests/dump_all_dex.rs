@@ -21,13 +21,8 @@ mod tests {
         router_feed_lib::utils::tracing_subscriber_init();
         syscallstubs::deactivate_program_logs();
 
-        let disable_compressed = std::env::var::<String>("DISABLE_COMRPESSED_GPA".to_string())
-            .unwrap_or("false".to_string());
-        let disable_compressed: bool = disable_compressed.trim().parse().unwrap();
-
         let rpc_url = env::var("RPC_HTTP_URL")?;
-        let (mut rpc_client, _chain_data) =
-            rpc::rpc_dumper_client(rpc_url, "all.lz4", !disable_compressed);
+        let (mut rpc_client, _chain_data) = rpc::rpc_dumper_client(rpc_url, "all.lz4");
 
         let dexs = dex_test_utils::get_all_dex(&mut rpc_client).await?;
 

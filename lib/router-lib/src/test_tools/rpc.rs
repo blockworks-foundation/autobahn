@@ -166,11 +166,11 @@ impl Drop for DumpRpcClient {
     }
 }
 
-pub fn rpc_dumper_client(
-    url: String,
-    out_path: &str,
-    gpa_compression_enabled: bool,
-) -> (RouterRpcClient, ChainDataArcRw) {
+pub fn rpc_dumper_client(url: String, out_path: &str) -> (RouterRpcClient, ChainDataArcRw) {
+    let disable_compressed_gpa =
+        std::env::var::<String>("DISABLE_COMRPESSED_GPA".to_string()).unwrap_or("true".to_string());
+    let gpa_compression_enabled: bool = !disable_compressed_gpa.trim().parse::<bool>().unwrap();
+
     let chain_data = ChainDataArcRw::new(RwLock::new(ChainData::new()));
     let rpc_client = RouterRpcClient {
         rpc: Box::new(DumpRpcClient {
