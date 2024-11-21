@@ -299,6 +299,14 @@ async fn main() -> anyhow::Result<()> {
             &vec![]
         ),
         dex::generic::build_dex!(
+            dex_gobbler::GobblerDex::initialize(&mut router_rpc, HashMap::new()).await?,
+            &mango_data,
+            config.gobbler.enabled,
+            config.gobbler.take_all_mints,
+            config.gobbler.add_mango_tokens,
+            &config.gobbler.mints
+        ),
+        dex::generic::build_dex!(
             dex_invariant::InvariantDex::initialize(&mut router_rpc, HashMap::new()).await?,
             &mango_data,
             config.invariant.enabled,
