@@ -80,7 +80,7 @@ dex-saber = { path = "../../lib/dex-saber/", version = "0.0.1" }
 dex-infinity = { path = "../../lib/dex-infinity/", version = "0.0.1" }
 dex-openbook-v2 = { path = "../../lib/dex-openbook-v2/", version = "0.0.1" }
 dex-invariant = { path = "../../lib/dex-invariant", version = "0.0.1" }
-
+dex-gobbler = { path = "../../lib/dex-gobbler", version = "0.0.1" }
 router-config-lib = { path = "../../lib/router-config-lib" }
 router-feed-lib = { path = "../../lib/router-feed-lib" }
 spl-associated-token-account = { version = "1.0.5",features = ["no-entrypoint"] }

@@ -43,6 +43,7 @@ pub struct Config {
     pub saber: DexConfig,
     pub invariant: DexConfig,
     pub infinity: InfinityConfig,
+    pub gobbler: DexConfig,
     pub safety_checks: Option<SafetyCheckConfig>,
     pub hot_mints: Option<HotMintsConfig>,
     pub debug_config: Option<DebugConfig>,
