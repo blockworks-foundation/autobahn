@@ -9,7 +9,6 @@ use solana_program_test::tokio;
 #[tokio::test]
 async fn test_dump_input_data_openbook_v2() -> anyhow::Result<()> {
     let options = HashMap::from([]);
-
     if router_test_lib::config_should_dump_mainnet_data() {
         openbook_v2_step_1(&options).await?;
     }

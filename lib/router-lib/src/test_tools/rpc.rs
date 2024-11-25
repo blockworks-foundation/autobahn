@@ -79,6 +79,10 @@ impl RouterRpcClientTrait for ReplayerRpcClient {
             None => anyhow::bail!("Invalid gpa"),
         }
     }
+
+    fn is_gpa_compression_enabled(&self) -> bool {
+        false
+    }
 }
 
 #[async_trait::async_trait]
@@ -150,6 +154,10 @@ impl RouterRpcClientTrait for DumpRpcClient {
             }
         }
     }
+
+    fn is_gpa_compression_enabled(&self) -> bool {
+        false
+    }
 }
 
 impl Drop for DumpRpcClient {
@@ -159,6 +167,10 @@ impl Drop for DumpRpcClient {
 }
 
 pub fn rpc_dumper_client(url: String, out_path: &str) -> (RouterRpcClient, ChainDataArcRw) {
+    let disable_compressed_gpa =
+        std::env::var::<String>("DISABLE_COMRPESSED_GPA".to_string()).unwrap_or("true".to_string());
+    let gpa_compression_enabled: bool = !disable_compressed_gpa.trim().parse::<bool>().unwrap();
+
     let chain_data = ChainDataArcRw::new(RwLock::new(ChainData::new()));
     let rpc_client = RouterRpcClient {
         rpc: Box::new(DumpRpcClient {
@@ -174,10 +186,13 @@ pub fn rpc_dumper_client(url: String, out_path: &str) -> (RouterRpcClient, Chain
                         Duration::from_secs(60 * 20),
                         CommitmentConfig::finalized(),
                     ),
+                    gpa_compression_enabled,
                 }),
+                gpa_compression_enabled,
             },
             path: out_path.to_string(),
         }),
+        gpa_compression_enabled,
     };
 
     (rpc_client, chain_data)
@@ -213,7 +228,10 @@ pub fn rpc_replayer_client(in_path: &str) -> (RouterRpcClient, ChainDataArcRw) {
     }
 
     let rpc = ReplayerRpcClient { dump };
-    let replayer = RouterRpcClient { rpc: Box::new(rpc) };
+    let replayer = RouterRpcClient {
+        rpc: Box::new(rpc),
+        gpa_compression_enabled: false,
+    };
     let chain_data = ChainDataArcRw::new(RwLock::new(chain_data));
 
     (replayer, chain_data)

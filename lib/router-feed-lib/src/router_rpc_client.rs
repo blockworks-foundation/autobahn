@@ -19,10 +19,13 @@ pub trait RouterRpcClientTrait: Sync + Send {
         pubkey: &Pubkey,
         config: RpcProgramAccountsConfig,
     ) -> anyhow::Result<Vec<AccountWrite>>;
+
+    fn is_gpa_compression_enabled(&self) -> bool;
 }
 
 pub struct RouterRpcClient {
     pub rpc: Box<dyn RouterRpcClientTrait + Send + Sync + 'static>,
+    pub gpa_compression_enabled: bool,
 }
 
 #[async_trait::async_trait]
@@ -46,5 +49,9 @@ impl RouterRpcClientTrait for RouterRpcClient {
         self.rpc
             .get_program_accounts_with_config(pubkey, config)
             .await
+    }
+
+    fn is_gpa_compression_enabled(&self) -> bool {
+        self.gpa_compression_enabled
     }
 }

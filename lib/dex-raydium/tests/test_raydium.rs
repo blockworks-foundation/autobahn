@@ -8,7 +8,6 @@ use router_lib::test_tools::{generate_dex_rpc_dump, rpc};
 #[tokio::test]
 async fn test_dump_input_data_raydium() -> anyhow::Result<()> {
     let options = HashMap::from([]);
-
     if router_test_lib::config_should_dump_mainnet_data() {
         raydium_step_1(&options).await?;
     }

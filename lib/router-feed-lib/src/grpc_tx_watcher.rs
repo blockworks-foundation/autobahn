@@ -14,7 +14,7 @@ use yellowstone_grpc_proto::tonic::{
 use async_channel::Sender;
 use solana_sdk::signature::Signature;
 use std::time::Instant;
-use std::{collections::HashMap, env, str::FromStr, time::Duration};
+use std::{collections::HashMap, env, time::Duration};
 use tracing::*;
 
 use yellowstone_grpc_proto::prelude::{

@@ -5,7 +5,7 @@ function pad () { [ "$#" -gt 1 ] && [ -n "$2" ] && printf "%$2.${2#-}s" "$1"; }
 
 # env settings
 export DUMP_MAINNET_DATA=1 RUST_LOG=info
-
+export RPC_HTTP_URL="http://fcs-da1._peer.internal:18899"  
 # define in addition
 # RPC_HTTP_URL="http://fcs-ams1._peer.internal:18899" 
 # for eclipse

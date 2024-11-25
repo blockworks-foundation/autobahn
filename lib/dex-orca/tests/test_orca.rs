@@ -12,7 +12,6 @@ async fn test_dump_input_data_orca() -> anyhow::Result<()> {
         ("program_id".to_string(), whirlpools_client::ID.to_string()),
         ("program_name".to_string(), "Orca".to_string()),
     ]);
-
     if router_test_lib::config_should_dump_mainnet_data() {
         orca_step_1(&options).await?;
     }
