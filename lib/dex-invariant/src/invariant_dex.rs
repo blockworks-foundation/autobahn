@@ -10,10 +10,12 @@ use anchor_spl::{
 };
 use anyhow::{Context, Ok};
 use async_trait::async_trait;
+use decimal::*;
 use invariant_types::{
+    decimals::Price,
     math::{calculate_price_sqrt, get_max_tick, get_min_tick},
     structs::{Pool, Tick, Tickmap, TickmapView, TICK_CROSSES_PER_IX, TICK_LIMIT},
-    ANCHOR_DISCRIMINATOR_SIZE, TICK_SEED,
+    ANCHOR_DISCRIMINATOR_SIZE, MAX_SQRT_PRICE, MIN_SQRT_PRICE, TICK_SEED,
 };
 use router_feed_lib::router_rpc_client::{RouterRpcClient, RouterRpcClientTrait};
 use router_lib::dex::{
@@ -355,9 +357,9 @@ impl DexInterface for InvariantDex {
 
         let x_to_y = id.x_to_y;
         let sqrt_price_limit = if x_to_y {
-            calculate_price_sqrt(get_min_tick(edge.pool.tick_spacing)?)
+            Price::new(MIN_SQRT_PRICE)
         } else {
-            calculate_price_sqrt(get_max_tick(edge.pool.tick_spacing)?)
+            Price::new(MAX_SQRT_PRICE)
         };
 
         let simulation = edge
@@ -431,9 +433,9 @@ impl DexInterface for InvariantDex {
 
         let x_to_y = id.x_to_y;
         let sqrt_price_limit = if x_to_y {
-            calculate_price_sqrt(get_min_tick(edge.pool.tick_spacing)?)
+            Price::new(MIN_SQRT_PRICE)
         } else {
-            calculate_price_sqrt(get_max_tick(edge.pool.tick_spacing)?)
+            Price::new(MAX_SQRT_PRICE)
         };
 
         let simulation = edge

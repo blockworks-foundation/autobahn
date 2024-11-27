@@ -2,7 +2,10 @@ use crate::internal::accounts::{InvariantSwapAccounts, InvariantSwapParams};
 use crate::invariant_edge::{InvariantEdge, InvariantEdgeIdentifier, InvariantSimulationParams};
 use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use anyhow::Context;
+use invariant_types::decimals::Price;
 use invariant_types::math::{get_max_sqrt_price, get_min_sqrt_price};
+use invariant_types::{MAX_SQRT_PRICE, MIN_SQRT_PRICE};
+use decimal::*;
 use router_lib::dex::{AccountProviderView, DexEdgeIdentifier, SwapInstruction};
 use sha2::{Digest, Sha256};
 use solana_program::instruction::Instruction;
@@ -37,9 +40,9 @@ pub fn build_swap_ix(
     );
 
     let sqrt_price_limit = if id.x_to_y {
-        get_min_sqrt_price(edge.pool.tick_spacing)?
+        Price::new(MIN_SQRT_PRICE)
     } else {
-        get_max_sqrt_price(edge.pool.tick_spacing)?
+        Price::new(MAX_SQRT_PRICE)
     };
 
     let invariant_swap_result = &edge
