@@ -17,7 +17,7 @@ use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::sysvar::SysvarId;
 use std::sync::Arc;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 pub async fn run_dump_mainnet_data(
     dex: Arc<dyn DexInterface>,
@@ -44,7 +44,7 @@ pub async fn run_dump_mainnet_data_with_custom_amount(
     );
 
     // always insert clock into chain data so it's available in dump during test run
-    let clock_account = rpc_client.get_account(&Clock::id()).await?;
+    let clock_account = rpc_client.get_account(&Clock::id()).await?.unwrap();
     let clock = clock_account.deserialize_data::<Clock>()?;
     let clock_data = AccountData {
         slot: clock.slot,
@@ -78,9 +78,17 @@ pub async fn run_dump_mainnet_data_with_custom_amount(
             continue;
         };
 
-        let Ok(quote) = dex.quote(&id, &edge, &chain_data, q(edge.clone())) else {
-            errors += 1;
-            continue;
+        let quote = match dex.quote(&id, &edge, &chain_data, q(edge.clone())) {
+            Ok(quote) => quote,
+            Err(e) => {
+                tracing::error!(
+                    "Error : quote failed {:?} -> {:?} : {e:?}",
+                    id.input_mint(),
+                    id.output_mint()
+                );
+                errors += 1;
+                continue;
+            }
         };
 
         if quote.in_amount == 0 {
@@ -93,16 +101,20 @@ pub async fn run_dump_mainnet_data_with_custom_amount(
             continue;
         }
 
-        let Ok(swap_ix) = dex.build_swap_ix(
+        let swap_ix = match dex.build_swap_ix(
             &id,
             &chain_data,
             &wallet.pubkey(),
             quote.in_amount,
             quote.out_amount,
             1000,
-        ) else {
-            errors += 1;
-            continue;
+        ) {
+            Ok(swap_ix) => swap_ix,
+            Err(e) => {
+                tracing::error!("Error : creating swap instruction {e:?}");
+                errors += 1;
+                continue;
+            }
         };
 
         accounts_needed.extend(
@@ -182,6 +194,7 @@ pub async fn run_dump_swap_ix_with_custom_amount(
         programs: dex.program_ids().into_iter().collect(),
         cache: vec![],
         accounts: Default::default(),
+        missing_accounts: Default::default(),
     };
 
     // always include clock sysvar in dump to ensure we can set the sysvar during test run
@@ -200,9 +213,17 @@ pub async fn run_dump_swap_ix_with_custom_amount(
             continue;
         };
 
-        let Ok(quote) = dex.quote(&id, &edge, &account_provider, q(edge.clone())) else {
-            errors += 1;
-            continue;
+        let quote = match dex.quote(&id, &edge, &account_provider, q(edge.clone())) {
+            Ok(quote) => quote,
+            Err(e) => {
+                tracing::error!(
+                    "Error : quote failed {:?} -> {:?} : {e:?}",
+                    id.input_mint(),
+                    id.output_mint()
+                );
+                errors += 1;
+                continue;
+            }
         };
 
         if quote.in_amount == 0 {
@@ -215,16 +236,20 @@ pub async fn run_dump_swap_ix_with_custom_amount(
             continue;
         }
 
-        let Ok(swap_ix) = dex.build_swap_ix(
+        let swap_ix = match dex.build_swap_ix(
             &id,
             &account_provider,
             &wallet.pubkey(),
             quote.in_amount,
             quote.out_amount,
             1000,
-        ) else {
-            errors += 1;
-            continue;
+        ) {
+            Ok(swap_ix) => swap_ix,
+            Err(e) => {
+                tracing::error!("Error : creating swap instruction {e:?}");
+                errors += 1;
+                continue;
+            }
         };
 
         println!(
@@ -251,7 +276,11 @@ pub async fn run_dump_swap_ix_with_custom_amount(
             if let Ok(acc) = chain_data_reader.account(&account.pubkey) {
                 dump.accounts.insert(account.pubkey, acc.account.clone());
             } else {
-                error!("Missing account (needed for swap) {}", account.pubkey);
+                if !is_ata(&account.pubkey, &wallet.pubkey(), &id.input_mint())
+                    && !is_ata(&account.pubkey, &wallet.pubkey(), &id.output_mint())
+                {
+                    dump.missing_accounts.insert(account.pubkey);
+                }
             }
         }
         let account = chain_data_reader
@@ -311,7 +340,12 @@ pub async fn run_dump_swap_ix_with_custom_amount(
                     if let Ok(acc) = chain_data_reader.account(&account.pubkey) {
                         dump.accounts.insert(account.pubkey, acc.account.clone());
                     } else {
-                        error!("Missing account (needed for swap) {}", account.pubkey);
+                        if !is_ata(&account.pubkey, &wallet.pubkey(), &id.input_mint())
+                            && !is_ata(&account.pubkey, &wallet.pubkey(), &id.output_mint())
+                            && !dump.missing_accounts.contains(&account.pubkey)
+                        {
+                            error!("Missing account in dump {}", account.pubkey);
+                        }
                     }
                 }
             }
@@ -355,6 +389,14 @@ pub async fn run_dump_swap_ix_with_custom_amount(
         let base64 = base64::encode(result);
         debug!("account : {pk:?} dump : {base64:?}");
     }
+
+    for pk in &dump.missing_accounts {
+        warn!(
+            "following account is in the transaction but does not exists : {:?}",
+            pk
+        );
+    }
+
     serialize::serialize_to_file(
         &dump,
         &format!("../../programs/simulator/tests/fixtures/{}", dump_name).to_string(),

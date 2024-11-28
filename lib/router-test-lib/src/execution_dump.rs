@@ -20,4 +20,5 @@ pub struct ExecutionDump {
     pub programs: HashSet<Pubkey>,
     pub cache: Vec<ExecutionItem>,
     pub accounts: HashMap<Pubkey, AccountSharedData>,
+    pub missing_accounts: HashSet<Pubkey>,
 }

@@ -47,8 +47,8 @@ impl DexInterface for InfinityDex {
             lst_state_list,
             pool_state,
         } = SPoolJup::init_keys(program_id);
-        let lst_state_list_account = rpc.get_account(&lst_state_list).await.unwrap();
-        let pool_state_account = rpc.get_account(&pool_state).await.unwrap();
+        let lst_state_list_account = rpc.get_account(&lst_state_list).await.unwrap().unwrap();
+        let pool_state_account = rpc.get_account(&pool_state).await.unwrap().unwrap();
 
         let amm: s_jup_interface::SPool<Account, Account> = SPoolJup::from_init_accounts(
             program_id,
