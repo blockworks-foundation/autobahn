@@ -63,6 +63,7 @@ where
     };
 
     let sol_mint = Pubkey::from_str("So11111111111111111111111111111111111111112").unwrap();
+    let usdc_mint = Pubkey::from_str("AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE").unwrap();
     let config = config.clone();
     let start = Instant::now();
     let job = tokio::spawn(async move {
@@ -83,6 +84,7 @@ where
 
             let mut all_mints = token_cache.tokens();
             all_mints.insert(sol_mint);
+            all_mints.insert(usdc_mint);
 
             let hot_mints = hot_mints_cache.read().unwrap().get();
             let mints = match generate_mints(

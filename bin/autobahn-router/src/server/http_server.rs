@@ -172,6 +172,7 @@ impl HttpServer {
                 address_lookup_table_addresses.clone(),
                 hash_provider.clone(),
                 alt_provider.clone(),
+                live_account_provider.clone(),
                 ix_builder.clone(),
                 &route_candidate,
                 Pubkey::new_unique().to_string(),
@@ -199,7 +200,7 @@ impl HttpServer {
 
         let route: Route = route?;
 
-        Self::log_repriced_amount(live_account_provider, reprice_probability, &route);
+        Self::log_repriced_amount(live_account_provider.clone(), reprice_probability, &route);
 
         let other_amount_threshold = if swap_mode == SwapMode::ExactOut {
             (route.in_amount as f64 * (10_000f64 + input.slippage_bps as f64) / 10_000f64).floor()
@@ -279,7 +280,7 @@ impl HttpServer {
     ) -> Result<Json<Value>, AppError> {
         let route = route_provider.try_from(&input.quote_response)?;
 
-        Self::log_repriced_amount(live_account_provider, reprice_probability, &route);
+        Self::log_repriced_amount(live_account_provider.clone(), reprice_probability, &route);
 
         let swap_mode: SwapMode = SwapMode::from_str(&input.quote_response.swap_mode)
             .map_err(|_| anyhow::Error::msg("Invalid SwapMode"))?;
@@ -293,6 +294,7 @@ impl HttpServer {
             address_lookup_table_addresses,
             hash_provider,
             alt_provider,
+            live_account_provider,
             ix_builder,
             &route,
             input.user_public_key,
@@ -352,10 +354,12 @@ impl HttpServer {
         THashProvider: HashProvider + Send + Sync + 'static,
         TAltProvider: AltProvider + Send + Sync + 'static,
         TIxBuilder: SwapInstructionsBuilder + Send + Sync + 'static,
+        TAccountProvider: AccountProvider + Send + Sync + 'static,
     >(
         address_lookup_table_addresses: Vec<String>,
         hash_provider: Arc<THashProvider>,
         alt_provider: Arc<TAltProvider>,
+        live_account_provider: Arc<TAccountProvider>,
         ix_builder: Arc<TIxBuilder>,
         route_plan: &Route,
         wallet_pk: String,
@@ -369,6 +373,7 @@ impl HttpServer {
         let wallet_pk = Pubkey::from_str(&wallet_pk)?;
 
         let ixs = ix_builder.build_ixs(
+            live_account_provider,
             &wallet_pk,
             route_plan,
             wrap_unwrap_sol,
@@ -413,11 +418,13 @@ impl HttpServer {
     async fn swap_ix_handler<
         TRouteProvider: RouteProvider + Send + Sync + 'static,
         TAltProvider: AltProvider + Send + Sync + 'static,
+        TAccountProvider: AccountProvider + Send + Sync + 'static,
         TIxBuilder: SwapInstructionsBuilder + Send + Sync + 'static,
     >(
         address_lookup_table_addresses: Vec<String>,
         route_provider: Arc<TRouteProvider>,
         alt_provider: Arc<TAltProvider>,
+        live_account_provider: Arc<TAccountProvider>,
         ix_builder: Arc<TIxBuilder>,
         Query(_query): Query<SwapForm>,
         Json(input): Json<SwapRequest>,
@@ -434,6 +441,7 @@ impl HttpServer {
         };
 
         let ixs = ix_builder.build_ixs(
+            live_account_provider,
             &wallet_pk,
             &route_plan,
             input.wrap_and_unwrap_sol,
@@ -628,6 +636,7 @@ impl HttpServer {
         let alt = address_lookup_tables.clone();
         let rp = route_provider.clone();
         let altp = alt_provider.clone();
+        let lap = live_account_provider.clone();
         let ixb = ix_builder.clone();
         router = router.route(
             "/swap-instructions",
@@ -637,7 +646,7 @@ impl HttpServer {
                     .with_label_values(&["swap-ix", client_key])
                     .start_timer();
 
-                let response = Self::swap_ix_handler(alt, rp, altp, ixb, query, form).await;
+                let response = Self::swap_ix_handler(alt, rp, altp, lap, ixb, query, form).await;
 
                 match response {
                     Ok(_) => {

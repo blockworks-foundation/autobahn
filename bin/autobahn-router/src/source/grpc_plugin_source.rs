@@ -762,9 +762,11 @@ async fn process_account_updated_from_sources(
                 metrics::GRPC_SNAPSHOT_ACCOUNT_WRITES.inc();
                 metrics::GRPC_ACCOUNT_WRITE_QUEUE.set(account_write_queue_sender.len() as i64);
 
-                if !filters.contains(&account.pubkey) {
-                    continue;
-                }
+                // TODO: disabled for eclipse launch, was causing issues with the program id
+                //       subscription for invariant
+                // if !filters.contains(&account.pubkey) {
+                //     continue;
+                // }
 
                 updated_accounts.push(account);
             }

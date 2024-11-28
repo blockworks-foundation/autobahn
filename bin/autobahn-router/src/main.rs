@@ -305,8 +305,8 @@ async fn main() -> anyhow::Result<()> {
             dex_invariant::InvariantDex::initialize(&mut router_rpc, HashMap::new(),).await?,
             &mango_data,
             config.invariant.enabled,
-            config.invariant.take_all_mints,
             config.invariant.add_mango_tokens,
+            config.invariant.take_all_mints,
             &config.invariant.mints
         ),
     ]
@@ -443,6 +443,15 @@ async fn main() -> anyhow::Result<()> {
         )
         .collect::<HashSet<_>>();
 
+    // collect all mints traded so their token program owner can be checked
+    let mut mints = HashSet::new();
+    for d in dexs.iter() {
+        for e in d.edges_per_pk.values().flatten() {
+            mints.insert(e.input_mint);
+            mints.insert(e.output_mint);
+        }
+    }
+
     debug_tools::set_global_filters(&filters);
 
     info!(
@@ -458,6 +467,7 @@ async fn main() -> anyhow::Result<()> {
             DexSubscriptionMode::Mixed(m) => m.accounts.clone().into_iter(),
             DexSubscriptionMode::Disabled => HashSet::new().into_iter(),
         })
+        .chain(mints.into_iter())
         .collect();
 
     let subscribed_programs = dexs

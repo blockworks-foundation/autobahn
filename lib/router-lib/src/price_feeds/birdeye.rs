@@ -86,6 +86,10 @@ impl BirdeyePriceFeed {
         mints: &HashSet<Pubkey>,
         sender: broadcast::Sender<PriceUpdate>,
     ) -> anyhow::Result<()> {
+
+        // TODO: disabled for eclipse launch until traffic is live
+        return Ok(());
+
         let http_client = reqwest::Client::new();
 
         let mut chunks: Vec<Vec<Pubkey>> = vec![];

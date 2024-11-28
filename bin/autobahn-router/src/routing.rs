@@ -778,10 +778,11 @@ impl Routing {
                 price_impact,
             );
 
-            if price_impact > 0.25 {
-                skipped_bad_price_impact += 1;
-                continue;
-            }
+            // TODO: make this a config variable for reach network
+            // if price_impact > 0.25 {
+            //     skipped_bad_price_impact += 1;
+            //     continue;
+            // }
 
             match swap_mode {
                 SwapMode::ExactIn => {

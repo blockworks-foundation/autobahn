@@ -71,6 +71,8 @@ pub fn name(mint: &Pubkey) -> String {
         "BOME".to_string()
     } else if m == "3S8qX1MsMqRbiwKg2cQyx7nis1oHMgaCuc9c4VfvVdPN" {
         "MOTHER".to_string()
+    } else if m == "AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE" {
+        "USDC (hyperlane)".to_string()
     } else {
         m
     }
