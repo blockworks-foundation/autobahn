@@ -63,6 +63,11 @@ async fn test_quote_match_swap_for_raydium_cp() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+async fn test_quote_match_swap_for_gamma() -> anyhow::Result<()> {
+    run_all_swap_from_dump("gamma_swap.lz4").await?
+}
+
+#[tokio::test]
 async fn test_quote_match_swap_for_openbook_v2() -> anyhow::Result<()> {
     run_all_swap_from_dump("openbook_v2_swap.lz4").await?
 }
