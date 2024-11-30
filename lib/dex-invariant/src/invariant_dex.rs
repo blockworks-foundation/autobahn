@@ -12,8 +12,10 @@ use anyhow::{Context, Ok};
 use async_trait::async_trait;
 use invariant_types::{
     math::{calculate_price_sqrt, get_max_tick, get_min_tick},
-    structs::{Pool, Tick, Tickmap, TickmapView, TICK_CROSSES_PER_IX, TICK_LIMIT},
-    ANCHOR_DISCRIMINATOR_SIZE, TICK_SEED,
+    structs::{
+        Pool, Tick, Tickmap, TickmapView, TICK_CROSSES_PER_IX, TICK_LIMIT, TICK_SEARCH_RANGE,
+    },
+    ANCHOR_DISCRIMINATOR_SIZE, MAX_VIRTUAL_CROSS, TICK_SEED,
 };
 use router_feed_lib::router_rpc_client::{RouterRpcClient, RouterRpcClientTrait};
 use router_lib::dex::{
@@ -36,6 +38,8 @@ use crate::{
 pub struct InvariantDex {
     pub edges: HashMap<Pubkey, Vec<Arc<dyn DexEdgeIdentifier>>>,
 }
+pub const TICK_SUBSCRIPTION_RANGE: i32 =
+    (TICK_CROSSES_PER_IX as i32 + MAX_VIRTUAL_CROSS as i32 + 2) * TICK_SEARCH_RANGE;
 
 #[derive(Debug)]
 pub enum PriceDirection {
@@ -281,23 +285,33 @@ impl DexInterface for InvariantDex {
             })
             .into_iter()
             .collect();
-        let tickmaps = pools.iter().map(|p| p.1.tickmap).collect();
-        let tickmaps = rpc.get_multiple_accounts(&tickmaps).await?;
+        let tickmaps = pools.iter().map(|p| p.1.tickmap).collect::<Vec<Pubkey>>();
 
         let edges_per_pk = {
             let mut map = HashMap::new();
             let pools_with_edge_pairs = pools.iter().zip(tickmaps.iter()).zip(edge_pairs.iter());
-            for (((pool_pk, pool), (tickmap_pk, tickmap_acc)), (edge_x_to_y, edge_y_to_x)) in
-                pools_with_edge_pairs
+            for (((pool_pk, pool), tickmap_pk), (edge_x_to_y, edge_y_to_x)) in pools_with_edge_pairs
             {
                 let entry: Vec<Arc<dyn DexEdgeIdentifier>> =
                     vec![edge_x_to_y.clone(), edge_y_to_x.clone()];
                 map.insert(*pool_pk, entry.clone());
                 map.insert(*tickmap_pk, entry.clone());
 
-                let tickmap_account_data = tickmap_acc.data();
-                let tickmap = Self::deserialize::<Tickmap>(tickmap_account_data)?;
-                let indexes = Self::find_all_tick_indexes(pool.tick_spacing, &tickmap)?;
+                let mut min_tick = get_min_tick(pool.tick_spacing)?;
+                let mut max_tick = get_max_tick(pool.tick_spacing)?;
+                min_tick += min_tick % (pool.tick_spacing as i32);
+                max_tick -= max_tick % (pool.tick_spacing as i32);
+
+                let tick_range_max = max_tick.min(
+                    pool.current_tick_index + TICK_SUBSCRIPTION_RANGE * pool.tick_spacing as i32,
+                );
+
+                let tick_range_min = min_tick.max(
+                    pool.current_tick_index - TICK_SUBSCRIPTION_RANGE * pool.tick_spacing as i32,
+                );
+
+                let indexes = (tick_range_min..=tick_range_max).step_by(pool.tick_spacing as usize);
+
                 for tick in indexes {
                     map.insert(Self::tick_index_to_address(*pool_pk, tick), entry.clone());
                 }
