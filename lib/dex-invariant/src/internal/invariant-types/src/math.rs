@@ -1,5 +1,5 @@
 use crate::{err, from_result, function, location, ok_or_mark_trace, structs::TickmapView, trace};
-use std::{cell::RefMut, convert::TryInto};
+use std::{cell::RefMut, convert::TryInto, convert::TryFrom};
 
 use anchor_lang::*;
 
@@ -97,13 +97,13 @@ pub fn get_closer_limit(
     current_tick: i32, // tick already scaled by tick_spacing
     tick_spacing: u16,
     tickmap: &TickmapView,
-) -> Result<(Price, Option<(i32, bool)>)> {
+) -> TrackableResult<(Price, Option<(i32, bool)>)> {
     // find initalized tick (None also for virtual tick limiated by search scope)
     let closes_tick_index = if x_to_y {
         tickmap.prev_initialized(current_tick, tick_spacing)
     } else {
         tickmap.next_initialized(current_tick, tick_spacing)
-    };
+    }?;
 
     match closes_tick_index {
         Some(index) => {
@@ -121,7 +121,9 @@ pub fn get_closer_limit(
             let index = get_search_limit(current_tick, tick_spacing, !x_to_y);
             let price = calculate_price_sqrt(index);
 
-            require!(current_tick != index, InvariantErrorCode::LimitReached);
+            if current_tick == index {
+                return Err(err!("InvariantErrorCode::LimitReached"));
+            }
 
             // trunk-ignore(clippy/if_same_then_else)
             if x_to_y && price > sqrt_price_limit {
@@ -439,6 +441,16 @@ fn get_next_sqrt_price_y_down(
     // quotient= amount / L
     // PRICE_LIQUIDITY_DENOMINATOR = 10 ^ (24 - 6)
 
+    let nominator = U256::from(amount.get())
+        .checked_mul(U256::from(Price::one::<U256>()))
+        .ok_or(err!("mul overflow"))?
+        .checked_mul(U256::from(Price::one::<U256>()))
+        .ok_or(err!("mul overflow"))?;
+
+    let denominator = U256::from(liquidity.get())
+        .checked_mul(U256::from(PRICE_LIQUIDITY_DENOMINATOR))
+        .ok_or(err!("mul overflow"))?;
+
     if add {
         // Price::from_scale(amount, TokenAmount::scale())
         // max_nominator = max_amount * 10^24 => 2^144 so possible to overflow here
@@ -453,26 +465,34 @@ fn get_next_sqrt_price_y_down(
 
         // max_quotient = max_nominator / min_denominator
         // max_quotient = 2^128 * 10^24 / 10^18 ~ 2^148 so possible to overflow in max_quote
-        let quotient = from_result!(Price::checked_from_decimal(amount)
-            .map_err(|err| err!(&err))? // TODO: add util macro to map str -> TrackableError
-            .checked_big_div_by_number(
-                U256::from(liquidity.get())
-                    .checked_mul(U256::from(PRICE_LIQUIDITY_DENOMINATOR))
-                    .ok_or_else(|| err!("mul overflow"))?,
-            ))?;
+        let quotient = Price::new(
+            u128::try_from(
+                nominator
+                    .checked_div(denominator)
+                    .ok_or(err!("div overflow"))?,
+            )
+            .map_err(|_| err!("Failed to cast quotient to u128"))?,
+        );
+
         // max_quotient = 2^128
         // price_sqrt = 2^96
         // possible to overflow in result
         from_result!(price_sqrt.checked_add(quotient))
     } else {
-        // Price::from_scale - same as case above
-        let quotient = from_result!(Price::checked_from_decimal(amount)
-            .map_err(|err| err!(&err))? // TODO: add util macro to map str -> TrackableError
-            .checked_big_div_by_number_up(
-                U256::from(liquidity.get())
-                    .checked_mul(U256::from(PRICE_LIQUIDITY_DENOMINATOR))
-                    .ok_or_else(|| err!("mul overflow"))?,
-            ))?;
+        let quotient = Price::new(
+            u128::try_from(
+                nominator
+                    .checked_add(
+                        denominator
+                            .checked_sub(U256::from(1))
+                            .ok_or(err!("sub underflow"))?,
+                    )
+                    .ok_or(err!("add overflow"))?
+                    .checked_div(denominator)
+                    .ok_or(err!("div overflow"))?,
+            )
+            .map_err(|_| err!("Failed to cast quotient to u128"))?,
+        );
         from_result!(price_sqrt.checked_sub(quotient))
     }
 }
