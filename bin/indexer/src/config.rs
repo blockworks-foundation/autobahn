@@ -1,5 +1,5 @@
 use router_config_lib::AccountDataSourceConfig;
-use services_mango_lib::postgres_configuration::PostgresConfiguration;
+use services_lib::postgres_configuration::PostgresConfiguration;
 
 #[derive(Clone, Debug, Default, serde_derive::Deserialize)]
 pub struct Config {

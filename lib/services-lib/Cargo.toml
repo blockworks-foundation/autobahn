@@ -1,0 +1,21 @@
+[package]
+name = "services-lib"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+doctest = false
+
+[dependencies]
+anyhow = "1.0"
+base64 = "0.21"
+tokio = { version = "1", features = ["full"] }
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
+tokio-postgres-rustls = "0.9.0"
+postgres-types = { version = "0.2", features = ["array-impls", "derive", "with-chrono-0_4"] }
+postgres-native-tls = "0.5"
+native-tls = "0.2"
+rustls = "0.20.8"
+postgres_query = { git = "https://github.com/nolanderc/rust-postgres-query", rev = "b4422051c8a31fbba4a35f88004c1cefb1878dd5" }
+tracing = { version = "0.1", features = ["log"] }
+serde = { version = "1.0.188", features = ["derive"] }

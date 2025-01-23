@@ -1,5 +1,5 @@
-use services_mango_lib::env_helper::string_or_env as serde_string_or_env;
-use services_mango_lib::postgres_configuration::PostgresConfiguration;
+use services_lib::env_helper::string_or_env as serde_string_or_env;
+use services_lib::postgres_configuration::PostgresConfiguration;
 
 #[derive(Clone, Debug, Default, serde_derive::Deserialize)]
 pub struct Config {

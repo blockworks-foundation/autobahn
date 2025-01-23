@@ -1,7 +1,7 @@
 use crate::config::MetricsConfig;
 use async_channel::Receiver;
-use services_mango_lib::postgres_configuration::PostgresConfiguration;
-use services_mango_lib::postgres_connection;
+use services_lib::postgres_configuration::PostgresConfiguration;
+use services_lib::postgres_connection;
 use solana_sdk::signature::Signature;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};

@@ -46,7 +46,7 @@ router-feed-lib = { path = "../../lib/router-feed-lib" }
 router-config-lib = { path = "../../lib/router-config-lib" }
 base64 = "0.21.7"
 bincode = "1.3.3"
-services-mango-lib = { git = "https://github.com/blockworks-foundation/mango-v4.git" }
+services-lib = { path = "../../lib/services-lib" }
 tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
 tokio-postgres-rustls = "0.9.0"
 postgres_query = { git = "https://github.com/nolanderc/rust-postgres-query", rev = "b4422051c8a31fbba4a35f88004c1cefb1878dd5" }
